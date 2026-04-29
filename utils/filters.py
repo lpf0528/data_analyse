@@ -36,6 +36,13 @@ _CLASS_SQL = (
     " FROM dwd_lh_classes"
     " WHERE id IN (10060654, 10055057, 10060762) AND class_name <> ''"
 )
+# 自然周选项：按 ID 白名单过滤，排除空名称
+_WEEK_SQL = (
+    "SELECT id AS value,"
+    "CONCAT(`year`,'年',`month`,'月第',`week`, '周 (', DATE(`start_time`),'~' ,DATE(`end_time`),')') AS label "
+    "FROM lh_teaching_weeks_conf "
+    "WHERE tid = :tid order by end_time desc"
+)
 
 # ---------------------------------------------------------------------------
 # 注册表数据结构
@@ -86,6 +93,24 @@ FILTER_REGISTRY: dict[str, FilterSpec] = {
         sql=_CLASS_SQL,
         depends_on=["term_ids", "term_id"],
         cascade_clause="AND camp_term_id IN ({values})",
+    ),
+    "week_id": FilterSpec(
+        label="自然周",
+        widget="selectbox",
+        sql=_WEEK_SQL,
+        session_params=["tid"]
+    ),
+    "start_week_id": FilterSpec(
+        label="自然周",
+        widget="selectbox",
+        sql=_WEEK_SQL,
+        session_params=["tid"]
+    ),
+    "end_week_id": FilterSpec(
+        label="自然周",
+        widget="selectbox",
+        sql=_WEEK_SQL,
+        session_params=["tid"]
     ),
 }
 
