@@ -189,7 +189,6 @@ WHERE 1=1
   [[ AND `s`.`term_id` IN ({{term_ids}}) ]]
   [[ AND `s`.`big_class_id` IN ({{class_ids}}) ]]
   [[ AND `s`.`wechat_nickname` LIKE CONCAT('%', {{name}}, '%') ]]
-LIMIT 1000
 ```
 
 ---
