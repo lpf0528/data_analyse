@@ -55,4 +55,4 @@ if st.button("查询", type="primary"):
         )
 
     with tab_table:
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")

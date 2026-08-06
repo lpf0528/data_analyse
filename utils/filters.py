@@ -184,7 +184,7 @@ def render_filters(
     if not all_active:
         return values
 
-    # 横向排列：多选稍宽，其余筛选项更紧凑
+    # 横向排列固定宽：避免通栏 columns 把控件拉满；多选 400、其余 200
     _MULTI_WIDTH = 400
     _WIDGET_WIDTH = 200
     with st.container(horizontal=True, gap="small"):

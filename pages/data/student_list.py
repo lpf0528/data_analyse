@@ -1,8 +1,15 @@
+"""
+学员列表页：SQL 分页列表示例。
+
+布局约定见 AGENTS.md「列表分页页布局惯例」：
+筛选（横向固定宽）→ 查询按钮（右对齐）→ 结果区（SQL / 表格在上，分页栏在下）。
+"""
 import math
 import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
 
+# COUNT / DATA 共用 FROM+WHERE，保证总数与列表筛选条件一致
 _FROM_WHERE = """
 FROM `ods_lh_teaching_lh_teaching_student` `s`
 LEFT JOIN `dwd_lh_classes` `c`
@@ -30,10 +37,11 @@ LIMIT {{limit}} OFFSET {{offset}}
 """
 
 PAGE_SIZE_OPTIONS = [5, 10, 15, 20]
-_SS_FILTERS = "student_list_filters"
-_SS_PAGE = "student_list_page"
-_SS_SIZE = "student_list_page_size"
-_SS_SIZE_PREV = "student_list_page_size_prev"
+# session_state 键：与带 key 的 widget 一一对应；改值时勿再给 widget 传 default/index
+_SS_FILTERS = "student_list_filters"       # 上次点击「查询」时冻结的筛选条件
+_SS_PAGE = "student_list_page"             # st.pagination 的 key
+_SS_SIZE = "student_list_page_size"        # 每页条数 selectbox 的 key
+_SS_SIZE_PREV = "student_list_page_size_prev"  # 用于检测 page_size 变化并重置页码
 
 st.subheader("学员列表")
 
@@ -43,20 +51,27 @@ st.subheader("学员列表")
 
 conn = st.connection("mysql", type="sql")
 
+# 筛选区由 render_filters 统一渲染（横向固定宽：多选 400 / 其余 200）
 filter_values = render_filters(
     conn,
     extract_params(COUNT_TEMPLATE),
     fallbacks={"name": {"label": "昵称搜索", "widget": "text_input"}},
 )
 
+# 查询按钮右对齐；点击后冻结筛选并回到第 1 页
 with st.container(horizontal_alignment="right"):
     if st.button("查询", type="primary"):
         st.session_state[_SS_FILTERS] = filter_values
         st.session_state[_SS_PAGE] = 1
 
+# 仅在已点过「查询」后展示结果（翻页 / 改每页条数不丢条件）
 if _SS_FILTERS in st.session_state:
     saved_filters = st.session_state[_SS_FILTERS]
-    page_size = st.session_state.get(_SS_SIZE, 20)
+    # 只通过 session_state 管 widget 值，勿再传 default/index（否则 Streamlit 告警）
+    st.session_state.setdefault(_SS_PAGE, 1)
+    st.session_state.setdefault(_SS_SIZE, 20)
+    page_size = st.session_state[_SS_SIZE]
+    # 每页条数变更时回到第 1 页
     if st.session_state.get(_SS_SIZE_PREV) != page_size:
         st.session_state[_SS_PAGE] = 1
         st.session_state[_SS_SIZE_PREV] = page_size
@@ -66,13 +81,16 @@ if _SS_FILTERS in st.session_state:
         total = int(conn.query(count_sql, params=count_params, ttl=0).iloc[0]["total"])
 
     total_pages = max(1, math.ceil(total / page_size) if total else 1)
-    if st.session_state.get(_SS_PAGE, 1) > total_pages:
+    # 总数变少时避免当前页超出范围
+    if st.session_state[_SS_PAGE] > total_pages:
         st.session_state[_SS_PAGE] = total_pages
 
-    # 占位：SQL 在上、表格在中，分页在下（官方 empty + pagination 模式）
+    # 官方 empty + pagination：先占位 SQL/表格，再画底栏拿 page，最后回填
+    # （分页在视觉上在表格下方，但 page 值必须先于数据查询拿到）
     sql_slot = st.empty()
     dataframe_slot = st.empty()
 
+    # 底栏三列 [2,3,2]：左空 | 中分页居中 | 右「共 x 条」+ 每页条数
     _, page_col, right_col = st.columns(
         [2, 3, 2], vertical_alignment="center"
     )
@@ -80,24 +98,21 @@ if _SS_FILTERS in st.session_state:
         with st.container(horizontal_alignment="center"):
             page = st.pagination(
                 num_pages=total_pages,
-                default=1,
-                key=_SS_PAGE,
+                key=_SS_PAGE,  # 勿传 default，与上方 session_state 冲突
             )
     with right_col:
         with st.container(
             horizontal=True,
             horizontal_alignment="right",
             vertical_alignment="center",
-            gap="xsmall",
+            gap="xsmall",  # 两项间距收紧；默认 small 偏宽
         ):
+            # caption 必须 width="content"，否则 stretch 会撑开与选择框的间距
             st.caption(f"共 {total} 条", width="content")
             st.selectbox(
                 "每页条数",
                 PAGE_SIZE_OPTIONS,
-                index=PAGE_SIZE_OPTIONS.index(page_size)
-                if page_size in PAGE_SIZE_OPTIONS
-                else 3,
-                key=_SS_SIZE,
+                key=_SS_SIZE,  # 勿传 index，同上
                 label_visibility="collapsed",
                 width=80,
             )

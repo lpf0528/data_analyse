@@ -170,6 +170,15 @@ with st.container(
 - `st.caption` 默认 `width="stretch"`，会把与每页条数之间的空隙拉得很开；务必 `width="content"`
 - 每页条数选择框固定 `width=80`，标签折叠
 - 右列两项间距用 `gap="xsmall"`（或更小），不要用默认 `small`
+- **分页 / 每页条数 widget**：值只通过 `key` + `session_state` 管理；不要同时传 `default` / `index`，否则会触发
+  `created with a default value but also had its value set via the Session State API` 告警。重置页码时写
+  `st.session_state[page_key] = 1` 即可
+
+### 注释约定
+
+- 调整页面 / 布局 / 筛选相关代码时，**尽量同步补充注释**，说明「为什么这样写」（尤其是布局顺序、width、session_state 与 widget 参数取舍等易踩坑点）
+- 优先注释非显而易见的约束（如 empty 占位顺序、禁止 `default`+`key` 双设）；避免复述代码字面意思
+- 列表分页类新页可对照 `pages/data/student_list.py` 的注释风格
 
 ### 开发注意事项
 
