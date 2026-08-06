@@ -5,6 +5,7 @@ Metabase 模板页面的筛选器注册表。
 - FILTER_REGISTRY：需要查询数据库获取选项的参数。
   - widget="multiselect"  → {{param_ids}} 风格，返回 list，用于 IN 子句
   - widget="selectbox"    → {{param_id}}  风格，返回 int | None，用于 = 子句
+  - default_first=True    → 有选项时默认选中第一项（期次 term_id/term_ids 一律开启）
 - SESSION_KEYS：从 st.session_state 静默读取，不渲染 widget（tid、camp_id）。
 - 其他参数：通过 fallbacks 传入 render_filters()，渲染为简单内联 widget。
 
@@ -60,22 +61,27 @@ class FilterSpec:
     depends_on: list[str] = field(default_factory=list)
     # 联动时追加到选项 SQL 末尾的 WHERE 子句，{values} 为逗号分隔的整数 ID
     cascade_clause: str | None = None
+    # 有选项时默认选中第一项：selectbox → index=0；multiselect → default=[第一项]
+    # 期次筛选项（term_id / term_ids）一律 True
+    default_first: bool = False
 
 
 FILTER_REGISTRY: dict[str, FilterSpec] = {
-    # 期次 — 多选（必须在班级之前注册，班级联动依赖其值）
+    # 期次 — 多选（必须在班级之前注册；默认选中第一项）
     "term_ids": FilterSpec(
         label="期次",
         widget="multiselect",
         sql=_TERM_SQL,
         session_params=["tid"],
+        default_first=True,
     ),
-    # 期次 — 单选
+    # 期次 — 单选（默认选中第一项）
     "term_id": FilterSpec(
         label="期次",
         widget="selectbox",
         sql=_TERM_SQL,
         session_params=["tid"],
+        default_first=True,
     ),
     # 班级 — 多选（联动期次，选了期次后自动缩小班级范围）
     "class_ids": FilterSpec(
@@ -201,8 +207,14 @@ def render_filters(
                 # 构建 label → value 映射，保持选项顺序
                 opt_map: dict = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
+                labels = list(opt_map.keys())
+                # default_first：有选项时预选第一项（仅首次渲染生效，之后由 widget 状态保持）
+                default = [labels[0]] if spec.default_first and labels else None
                 selected = st.multiselect(
-                    spec.label, list(opt_map.keys()), width=_MULTI_WIDTH
+                    spec.label,
+                    labels,
+                    default=default,
+                    width=_MULTI_WIDTH,
                 )
                 values[param] = [opt_map[s] for s in selected]
 
@@ -210,14 +222,23 @@ def render_filters(
                 opt_df = conn.query(options_sql, params=query_params, ttl=300)
                 opt_map = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
-                chosen = st.selectbox(
-                    spec.label,
-                    options=list(opt_map.keys()),
-                    index=None,
-                    placeholder="全部",
-                    width=_WIDGET_WIDTH,
-                )
-                # 未选时返回 None，build_sql 会丢弃对应可选块
+                labels = list(opt_map.keys())
+                # default_first：有选项时选第一项；否则保持「全部」(None) 供可选块丢弃
+                if spec.default_first and labels:
+                    chosen = st.selectbox(
+                        spec.label,
+                        options=labels,
+                        index=0,
+                        width=_WIDGET_WIDTH,
+                    )
+                else:
+                    chosen = st.selectbox(
+                        spec.label,
+                        options=labels,
+                        index=None,
+                        placeholder="全部",
+                        width=_WIDGET_WIDTH,
+                    )
                 values[param] = opt_map[chosen] if chosen is not None else None
 
             elif spec.widget == "text_input":

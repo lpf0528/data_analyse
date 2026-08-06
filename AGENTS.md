@@ -35,7 +35,7 @@ uv sync
 - `format_display_sql(sql, sa_params)` — 将 `:param` 替换回实际值，用于页面展示
 
 **`utils/filters.py`**
-- `FilterSpec` dataclass：`widget` 为 `"multiselect"` / `"selectbox"` / `"text_input"`；选项 SQL 必须返回 `value`（整数 ID）和 `label`（显示文本）两列；支持联动字段 `depends_on` + `cascade_clause`（见下）
+- `FilterSpec` dataclass：`widget` 为 `"multiselect"` / `"selectbox"` / `"text_input"`；选项 SQL 必须返回 `value`（整数 ID）和 `label`（显示文本）两列；支持联动字段 `depends_on` + `cascade_clause`（见下）；支持 `default_first`（见下）
 - `FILTER_REGISTRY` — DB 驱动的筛选项注册表；同一数据源的单/多选变体共享同一 SQL 常量（如 `_TERM_SQL`），分别注册为 `term_id`（selectbox）和 `term_ids`（multiselect）；**注册顺序即渲染顺序，被依赖项必须在依赖项之前**
 - `SESSION_KEYS` — 从 session_state 静默读取、不渲染 widget（目前：`tid`、`camp_id`）
 - `render_filters(conn, template_params, fallbacks=None)` — 按注册表渲染 widget；`fallbacks` 传入不需要 DB 查询的简单筛选项（text_input / number_input），与注册表项统一排在同一行
@@ -46,6 +46,11 @@ uv sync
 - 使用 `st.container(horizontal=True, gap="small")` 横向排列，**不要**用通栏 `st.columns` 拉满整行
 - 固定宽度：`multiselect` → `width=400`；`selectbox` / `text_input` → `width=200`
 - 多选选中项过多时，依赖 Streamlit 原生标签区高度限制（约 4.5 行内滚动），无需额外 CSS
+
+**期次默认第一项：**
+- 所有期次筛选项（`term_id` / `term_ids`）在 `FILTER_REGISTRY` 中必须设 `default_first=True`
+- `selectbox`：`index=0`；`multiselect`：`default=[第一项 label]`（仅首次渲染生效，之后由 widget 状态保持）
+- 其他筛选项按需设置；未设时 selectbox 为「全部」(None)，multiselect 为空列表
 
 **联动筛选（Cascading Filters）：**
 
@@ -68,11 +73,15 @@ uv sync
 
 ### 新建数据页面的标准结构
 
+约定：用页面级 `_SS_FILTERS` 冻结上次查询条件；**首次进入自动查一次**，之后改筛选不自动重查，需点「查询」才刷新。
+
 ```python
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
 
 TEMPLATE = """<Metabase SQL，保留 {{param}} 和 [[ ]] 语法>"""
+
+_SS_FILTERS = "<page_name>_filters"  # 冻结筛选条件；首次进入也会写入
 
 conn = st.connection("mysql", type="sql")
 filter_values = render_filters(
@@ -81,12 +90,18 @@ filter_values = render_filters(
     fallbacks={"name": {"label": "学员昵称", "widget": "text_input"}},  # 简单参数内联
 )
 
-# 查询按钮右对齐
+# 查询按钮右对齐；点击后冻结当前筛选
 with st.container(horizontal_alignment="right"):
     if st.button("查询", type="primary"):
-        sql, sa_params = build_sql(TEMPLATE, filter_values)
-        st.code(format_display_sql(sql, sa_params), language="sql")
-        df = conn.query(sql, params=sa_params, ttl=0)
+        st.session_state[_SS_FILTERS] = filter_values
+
+# 首次进入：用当前默认筛选自动查一次
+if _SS_FILTERS not in st.session_state:
+    st.session_state[_SS_FILTERS] = filter_values
+
+saved_filters = st.session_state[_SS_FILTERS]
+sql, sa_params = build_sql(TEMPLATE, saved_filters)
+# ... expander / spinner / dataframe 见「页面结果展示惯例」
 ```
 
 - `multiselect` → 返回 `list[int]`，`build_sql` 内联为 `IN (1,2,3)`
@@ -94,47 +109,56 @@ with st.container(horizontal_alignment="right"):
 - 新增 DB 驱动筛选：在 `FILTER_REGISTRY` 追加 `FilterSpec`；简单文本/数字筛选：直接写入页面 `fallbacks`
 - 新增联动筛选：在被依赖项之后添加带 `depends_on` + `cascade_clause` 的 `FilterSpec`，基础 SQL 中不加 `LIMIT`（由 `_build_options_sql` 统一追加）
 - `FilterSpec.session_params` — 列出需要透传给选项 SQL 的 session_state 键（如 `["tid"]`），render 时自动注入为 named params
+- 新增期次相关筛选项时：务必 `default_first=True`
 
 ### 页面结果展示惯例
 
 ```python
+_SS_FILTERS = "<page_name>_filters"
+
 with st.container(horizontal_alignment="right"):
-    queried = st.button("查询", type="primary")
+    if st.button("查询", type="primary"):
+        st.session_state[_SS_FILTERS] = filter_values
 
-if queried:
-    # 必填校验（如 selectbox 必须有值）
-    if not filter_values.get("term_id"):
-        st.warning("请先选择期次")
-        st.stop()
+if _SS_FILTERS not in st.session_state:
+    st.session_state[_SS_FILTERS] = filter_values
 
-    sql, sa_params = build_sql(TEMPLATE, filter_values)
+saved_filters = st.session_state[_SS_FILTERS]
+# 必填校验（如仍可能为空时）
+if not saved_filters.get("term_id"):
+    st.warning("请先选择期次")
+    st.stop()
 
-    with st.expander("执行的 SQL", expanded=False):   # 或 expanded=True
-        st.code(format_display_sql(sql, sa_params), language="sql")
+sql, sa_params = build_sql(TEMPLATE, saved_filters)
 
-    with st.spinner("查询中..."):
-        df = conn.query(sql, params=sa_params, ttl=0)
+with st.expander("执行的 SQL", expanded=False):   # 或 expanded=True
+    st.code(format_display_sql(sql, sa_params), language="sql")
 
-    st.metric("查询结果", f"{len(df)} 条")
+with st.spinner("查询中..."):
+    df = conn.query(sql, params=sa_params, ttl=0)
 
-    # 若同时需要图表和表格：
-    tab_chart, tab_table = st.tabs(["图表", "表格"])
-    with tab_chart:
-        st.bar_chart(df.set_index("col_name")["value_col"])
-    with tab_table:
-        st.dataframe(df, width="stretch", hide_index=True)
+# 若同时需要图表和表格：
+tab_chart, tab_table = st.tabs(["图表", "表格"])
+with tab_chart:
+    st.bar_chart(df.set_index("col_name")["value_col"])
+with tab_table:
+    st.dataframe(df, width="stretch", hide_index=True)
 ```
 
+- **首次进入自动查询**：页面加载时若 `_SS_FILTERS` 尚未写入，立即用当前 `filter_values`（含期次默认第一项）冻结并执行查询；之后仅点「查询」才更新冻结条件
 - `number_input` fallback 实际渲染为 `st.text_input`，输入非纯数字时返回 `None`（已在 `render_filters` 内处理）
 - SQL 展示顺序：先 expander 再 spinner/dataframe（避免结果出现前看不到 SQL）
 - **禁止**使用已废弃的 `use_container_width`；改用 `width="stretch"` / `width="content"` / 像素值
+- 表格统一 `hide_index=True`；一般不必再展示「查询结果 N 条」metric（分页列表用底栏「共 N 条」即可）
 
 ### 列表分页页布局惯例（参考 `pages/data/student_list.py`）
 
 适用于需要 SQL 分页的列表页：筛选 → 查询 → 结果区（SQL / 表格 / 底部分页栏）。
 
-**查询按钮**
+**查询与首次自动加载**
 - 筛选下方单独一行，`st.container(horizontal_alignment="right")` 右对齐
+- 点击「查询」：写入 `_SS_FILTERS`，并将 `_SS_PAGE` 置为 `1`
+- 首次进入：若 `_SS_FILTERS` 不存在，写入当前 `filter_values` 并置页码为 `1`，随即走结果区逻辑
 
 **结果区占位顺序（官方 empty + pagination）**
 1. 先声明 `sql_slot = st.empty()`、`dataframe_slot = st.empty()`
@@ -171,14 +195,15 @@ with st.container(
 - 每页条数选择框固定 `width=80`，标签折叠
 - 右列两项间距用 `gap="xsmall"`（或更小），不要用默认 `small`
 - **分页 / 每页条数 widget**：值只通过 `key` + `session_state` 管理；不要同时传 `default` / `index`，否则会触发
-  `created with a default value but also had its value set via the Session State API` 告警。重置页码时写
-  `st.session_state[page_key] = 1` 即可
+  `created with a default value but also had its value set via the Session State API` 告警
+- **`st.pagination` 有内置 `default=1`**：首次渲染前**不要**预写 `session_state[page_key]`（含 `setdefault`）；
+  仅在 widget 已存在后的后续 rerun 里重置（点「查询」、改每页条数）。首次记录 `_SS_SIZE_PREV` 不算变更，避免误写页码
 
 ### 注释约定
 
 - 调整页面 / 布局 / 筛选相关代码时，**尽量同步补充注释**，说明「为什么这样写」（尤其是布局顺序、width、session_state 与 widget 参数取舍等易踩坑点）
-- 优先注释非显而易见的约束（如 empty 占位顺序、禁止 `default`+`key` 双设）；避免复述代码字面意思
-- 列表分页类新页可对照 `pages/data/student_list.py` 的注释风格
+- 优先注释非显而易见的约束（如 empty 占位顺序、禁止 `default`+`key` 双设、首次自动查询与冻结筛选）；避免复述代码字面意思
+- 列表分页类新页可对照 `pages/data/student_list.py` 的注释风格；图表统计类可对照 `pages/data/class_auth_stats.py`
 
 ### 开发注意事项
 
