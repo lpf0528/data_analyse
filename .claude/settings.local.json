@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Skill(metabase-page)",
-      "Bash(grep -v \"^d.*\\\\\\\\.venv\")"
-    ]
-  }
-}
