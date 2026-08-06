@@ -68,11 +68,23 @@ with st.spinner("查询中..."):
 tab_chart, tab_table = st.tabs(["图表", "表格"])
 
 with tab_chart:
-    st.bar_chart(
-        df.set_index("class_name")["authorized_student_num"],
-        x_label="班级",
-        y_label="授权学员数",
-    )
+    if df.empty:
+        st.info("暂无数据")
+    else:
+        n = len(df)
+        # 默认 width="stretch" 在 1～2 个班级时会把柱子拉满整行，观感很差；
+        # 少类别按柱数给固定像素宽（约 120px/柱），多了再拉满容器。
+        # 见 st.bar_chart 的 width: "stretch" | "content" | int
+        chart_width = "stretch" if n > 5 else max(200, n * 120 + 80)
+        st.bar_chart(
+            df,
+            x="class_name",
+            y="authorized_student_num",
+            x_label="班级",
+            y_label="授权学员数",
+            width=chart_width,
+            sort=False,  # 保持 SQL 已按授权数降序，勿按类名重排
+        )
 
 with tab_table:
     # 禁止 use_container_width；用 width="stretch"；隐藏默认行号
