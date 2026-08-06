@@ -184,24 +184,26 @@ def render_filters(
     if not all_active:
         return values
 
-    # 所有 widget 排列在同一行的等宽列中
-    cols = st.columns(len(all_active))
+    # 横向排列：多选稍宽，其余筛选项更紧凑
+    _MULTI_WIDTH = 400
+    _WIDGET_WIDTH = 200
+    with st.container(horizontal=True, gap="small"):
+        # 按注册表顺序渲染 DB 驱动筛选项；values 逐步更新，使联动项能读到依赖值
+        for param in active_registry:
+            spec = FILTER_REGISTRY[param]
+            # 将 session_params 中声明的 session key 透传给选项查询
+            query_params = {k: st.session_state.get(
+                k) for k in spec.session_params}
+            options_sql = _build_options_sql(spec, values)
 
-    # 按注册表顺序渲染 DB 驱动筛选项；values 逐步更新，使联动项能读到依赖值
-    for col, param in zip(cols, active_registry):
-        spec = FILTER_REGISTRY[param]
-        # 将 session_params 中声明的 session key 透传给选项查询
-        query_params = {k: st.session_state.get(
-            k) for k in spec.session_params}
-        options_sql = _build_options_sql(spec, values)
-
-        with col:
             if spec.widget == "multiselect":
                 opt_df = conn.query(options_sql, params=query_params, ttl=300)
                 # 构建 label → value 映射，保持选项顺序
                 opt_map: dict = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
-                selected = st.multiselect(spec.label, list(opt_map.keys()))
+                selected = st.multiselect(
+                    spec.label, list(opt_map.keys()), width=_MULTI_WIDTH
+                )
                 values[param] = [opt_map[s] for s in selected]
 
             elif spec.widget == "selectbox":
@@ -213,24 +215,26 @@ def render_filters(
                     options=list(opt_map.keys()),
                     index=None,
                     placeholder="全部",
+                    width=_WIDGET_WIDTH,
                 )
                 # 未选时返回 None，build_sql 会丢弃对应可选块
                 values[param] = opt_map[chosen] if chosen is not None else None
 
             elif spec.widget == "text_input":
-                values[param] = st.text_input(spec.label)
+                values[param] = st.text_input(spec.label, width=_WIDGET_WIDTH)
 
-    # 渲染 fallback 简单参数（排在注册表参数之后的列）
-    for col, param in zip(cols[len(active_registry):], active_fallback):
-        fb = fallbacks[param]
-        with col:
+        # 渲染 fallback 简单参数（排在注册表参数之后）
+        for param in active_fallback:
+            fb = fallbacks[param]
             widget = fb.get("widget", "text_input")
             label = fb.get("label", param)
             if widget == "number_input":
                 # 用 text_input 接收输入，非纯数字时返回 None 而非报错
-                raw = st.text_input(label, placeholder="留空表示不筛选")
+                raw = st.text_input(
+                    label, placeholder="留空表示不筛选", width=_WIDGET_WIDTH
+                )
                 values[param] = int(raw) if raw.strip().isdigit() else None
             else:
-                values[param] = st.text_input(label)
+                values[param] = st.text_input(label, width=_WIDGET_WIDTH)
 
     return values
