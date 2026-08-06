@@ -38,7 +38,11 @@ uv sync
 - `FilterSpec` dataclass：`widget` 为 `"multiselect"` / `"selectbox"` / `"text_input"`；选项 SQL 必须返回 `value`（整数 ID）和 `label`（显示文本）两列；支持联动字段 `depends_on` + `cascade_clause`（见下）；支持 `default_first`（见下）
 - `FILTER_REGISTRY` — DB 驱动的筛选项注册表；同一数据源的单/多选变体共享同一 SQL 常量（如 `_TERM_SQL`），分别注册为 `term_id`（selectbox）和 `term_ids`（multiselect）；**注册顺序即渲染顺序，被依赖项必须在依赖项之前**
 - `SESSION_KEYS` — 从 session_state 静默读取、不渲染 widget（目前：`tid`、`camp_id`）
-- `render_filters(conn, template_params, fallbacks=None)` — 按注册表渲染 widget；`fallbacks` 传入不需要 DB 查询的简单筛选项（text_input / number_input），与注册表项统一排在同一行
+- `render_filters(conn, template_params, fallbacks=None)` — 按注册表渲染 widget；返回 `(values, labels)`：`values` 供 `build_sql`，`labels` 为同键可读文本（供页面文案）；`fallbacks` 传入不需要 DB 查询的简单筛选项（text_input / number_input），与注册表项统一排在同一行
+
+**`utils/page_copy.py`**
+- `fill_template(template, **ctx)` — `str.format` 填充 `{name}`（与 Metabase `{{param}}` 分开）
+- `join_labels(labels, empty="全部")` — 多选 label 拼成短句
 
 参数分辨优先级：SESSION_KEYS → FILTER_REGISTRY → fallbacks → 忽略
 
@@ -81,31 +85,36 @@ from utils.filters import render_filters
 
 TEMPLATE = """<Metabase SQL，保留 {{param}} 和 [[ ]] 语法>"""
 
-_SS_FILTERS = "<page_name>_filters"  # 冻结筛选条件；首次进入也会写入
+_SS_FILTERS = "<page_name>_filters"        # 冻结筛选条件；首次进入也会写入
+_SS_LABELS = "<page_name>_filter_labels"   # 与筛选一并冻结的可读 label（文案用）
 
 conn = st.connection("mysql", type="sql")
-filter_values = render_filters(
+filter_values, filter_labels = render_filters(
     conn,
     extract_params(TEMPLATE),
     fallbacks={"name": {"label": "学员昵称", "widget": "text_input"}},  # 简单参数内联
 )
 
-# 查询按钮右对齐；点击后冻结当前筛选
+# 查询按钮右对齐；点击后冻结当前筛选与 labels
 with st.container(horizontal_alignment="right"):
     if st.button("查询", type="primary"):
         st.session_state[_SS_FILTERS] = filter_values
+        st.session_state[_SS_LABELS] = filter_labels
 
 # 首次进入：用当前默认筛选自动查一次
 if _SS_FILTERS not in st.session_state:
     st.session_state[_SS_FILTERS] = filter_values
+    st.session_state[_SS_LABELS] = filter_labels
 
 saved_filters = st.session_state[_SS_FILTERS]
+saved_labels = st.session_state.get(_SS_LABELS, {})
 sql, sa_params = build_sql(TEMPLATE, saved_filters)
 # ... expander / spinner / dataframe 见「页面结果展示惯例」
 ```
 
-- `multiselect` → 返回 `list[int]`，`build_sql` 内联为 `IN (1,2,3)`
-- `selectbox` → 返回 `int | None`，`None` 时可选块自动丢弃
+- `multiselect` → `values` 为 `list[int]`（`build_sql` 内联为 `IN (1,2,3)`），`labels` 为 `list[str]`
+- `selectbox` → `values` 为 `int | None`（`None` 时可选块自动丢弃），`labels` 为 `str | None`
+- 文案展示必须用冻结后的 `saved_labels`，与 `saved_filters` 同步写入，勿用未点「查询」的当前控件值
 - 新增 DB 驱动筛选：在 `FILTER_REGISTRY` 追加 `FilterSpec`；简单文本/数字筛选：直接写入页面 `fallbacks`
 - 新增联动筛选：在被依赖项之后添加带 `depends_on` + `cascade_clause` 的 `FilterSpec`，基础 SQL 中不加 `LIMIT`（由 `_build_options_sql` 统一追加）
 - `FilterSpec.session_params` — 列出需要透传给选项 SQL 的 session_state 键（如 `["tid"]`），render 时自动注入为 named params
@@ -115,13 +124,16 @@ sql, sa_params = build_sql(TEMPLATE, saved_filters)
 
 ```python
 _SS_FILTERS = "<page_name>_filters"
+_SS_LABELS = "<page_name>_filter_labels"
 
 with st.container(horizontal_alignment="right"):
     if st.button("查询", type="primary"):
         st.session_state[_SS_FILTERS] = filter_values
+        st.session_state[_SS_LABELS] = filter_labels
 
 if _SS_FILTERS not in st.session_state:
     st.session_state[_SS_FILTERS] = filter_values
+    st.session_state[_SS_LABELS] = filter_labels
 
 saved_filters = st.session_state[_SS_FILTERS]
 # 必填校验（如仍可能为空时）
@@ -151,19 +163,26 @@ with tab_table:
 - **禁止**使用已废弃的 `use_container_width`；改用 `width="stretch"` / `width="content"` / 像素值
 - 表格统一 `hide_index=True`；一般不必再展示「查询结果 N 条」metric（分页列表用底栏「共 N 条」即可）
 
+**说明 / KPI / 模板洞察（参考 `class_auth_stats` / `student_list`）：**
+- 占位顺序：标题 → **静态简介** → 筛选/查询 → SQL expander →（统计页）**KPI metric + 洞察段落** /（列表页）**摘要 caption** → 图表或表格
+- 文案模板写在各页常量；动态位用 `fill_template` + 冻结后的 `saved_labels` 与 `df`（或 COUNT）汇总；勿用未点「查询」的当前控件值
+- 点「查询」/首次冻结时，`values` 与 `labels` 必须一并写入 session
+- `df` 为空时不渲染洞察段，统一 `st.info("暂无数据")`；本阶段不做 LLM 文案
+
 ### 列表分页页布局惯例（参考 `pages/data/student_list.py`）
 
-适用于需要 SQL 分页的列表页：筛选 → 查询 → 结果区（SQL / 表格 / 底部分页栏）。
+适用于需要 SQL 分页的列表页：筛选 → 查询 → 摘要 caption → 结果区（SQL / 表格 / 底部分页栏）。
 
 **查询与首次自动加载**
 - 筛选下方单独一行，`st.container(horizontal_alignment="right")` 右对齐
-- 点击「查询」：写入 `_SS_FILTERS`，并将 `_SS_PAGE` 置为 `1`
-- 首次进入：若 `_SS_FILTERS` 不存在，写入当前 `filter_values` 并置页码为 `1`，随即走结果区逻辑
+- 点击「查询」：写入 `_SS_FILTERS` 与 `_SS_LABELS`，并将 `_SS_PAGE` 置为 `1`
+- 首次进入：若 `_SS_FILTERS` 不存在，写入当前 `filter_values` / `filter_labels`，随即走结果区逻辑
 
 **结果区占位顺序（官方 empty + pagination）**
-1. 先声明 `sql_slot = st.empty()`、`dataframe_slot = st.empty()`
-2. 再渲染底部分页栏（需要先拿到 `page` 才能算 `OFFSET`）
-3. 最后用占位符填入 SQL expander 与 `dataframe`
+1. COUNT 后先渲染摘要 caption（当前筛选 + 总人数）
+2. 再声明 `sql_slot = st.empty()`、`dataframe_slot = st.empty()`
+3. 再渲染底部分页栏（需要先拿到 `page` 才能算 `OFFSET`）
+4. 最后用占位符填入 SQL expander 与 `dataframe`
 
 **底部分页栏（三列 `[2, 3, 2]`，`vertical_alignment="center"`）**
 

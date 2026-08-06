@@ -8,6 +8,7 @@ Metabase 模板页面的筛选器注册表。
   - default_first=True    → 有选项时默认选中第一项（期次 term_id/term_ids 一律开启）
 - SESSION_KEYS：从 st.session_state 静默读取，不渲染 widget（tid、camp_id）。
 - 其他参数：通过 fallbacks 传入 render_filters()，渲染为简单内联 widget。
+- render_filters 返回 (values, labels)：values 供 SQL；labels 供页面文案，须与筛选一并冻结。
 
 联动筛选：
 - depends_on：监听的参数名列表，任一有值即触发联动
@@ -161,9 +162,16 @@ def render_filters(
     conn,
     template_params: set[str],
     fallbacks: dict[str, FallbackSpec] | None = None,
-) -> dict:
+) -> tuple[dict, dict]:
     """
-    为 template_params 中涉及的参数渲染筛选 widget，返回 {param: value} 字典供 build_sql() 使用。
+    为 template_params 中涉及的参数渲染筛选 widget。
+
+    返回 ``(values, labels)``：
+      - values：{param: value}，供 ``build_sql()`` 使用（ID / 列表 / 文本）
+      - labels：同键的可读展示文本，供页面文案模板填充
+          multiselect → list[str]；selectbox → str | None；
+          text_input / number_input → 与 value 相同或 str(value)；
+          SESSION_KEYS → str(value)（无值则为 None）
 
     参数解析优先级：
       1. SESSION_KEYS    → 从 st.session_state 读取，不渲染 widget
@@ -173,12 +181,14 @@ def render_filters(
       4. 未知参数         → 静默忽略
     """
     values: dict = {}
+    labels: dict = {}
     fallbacks = fallbacks or {}
 
     # 1. 从 session_state 读取会话参数
     for key in SESSION_KEYS:
         if key in template_params:
             values[key] = st.session_state.get(key)
+            labels[key] = str(values[key]) if values[key] is not None else None
 
     # 2 + 3. 确定需要渲染 widget 的参数列表
     active_registry = [p for p in FILTER_REGISTRY if p in template_params]
@@ -188,7 +198,7 @@ def render_filters(
     ]
     all_active = active_registry + active_fallback
     if not all_active:
-        return values
+        return values, labels
 
     # 横向排列固定宽：避免通栏 columns 把控件拉满；多选 400、其余 200
     _MULTI_WIDTH = 400
@@ -207,42 +217,48 @@ def render_filters(
                 # 构建 label → value 映射，保持选项顺序
                 opt_map: dict = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
-                labels = list(opt_map.keys())
+                opt_labels = list(opt_map.keys())
                 # default_first：有选项时预选第一项（仅首次渲染生效，之后由 widget 状态保持）
-                default = [labels[0]] if spec.default_first and labels else None
+                default = (
+                    [opt_labels[0]] if spec.default_first and opt_labels else None
+                )
                 selected = st.multiselect(
                     spec.label,
-                    labels,
+                    opt_labels,
                     default=default,
                     width=_MULTI_WIDTH,
                 )
                 values[param] = [opt_map[s] for s in selected]
+                labels[param] = list(selected)
 
             elif spec.widget == "selectbox":
                 opt_df = conn.query(options_sql, params=query_params, ttl=300)
                 opt_map = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
-                labels = list(opt_map.keys())
+                opt_labels = list(opt_map.keys())
                 # default_first：有选项时选第一项；否则保持「全部」(None) 供可选块丢弃
-                if spec.default_first and labels:
+                if spec.default_first and opt_labels:
                     chosen = st.selectbox(
                         spec.label,
-                        options=labels,
+                        options=opt_labels,
                         index=0,
                         width=_WIDGET_WIDTH,
                     )
                 else:
                     chosen = st.selectbox(
                         spec.label,
-                        options=labels,
+                        options=opt_labels,
                         index=None,
                         placeholder="全部",
                         width=_WIDGET_WIDTH,
                     )
                 values[param] = opt_map[chosen] if chosen is not None else None
+                labels[param] = chosen
 
             elif spec.widget == "text_input":
-                values[param] = st.text_input(spec.label, width=_WIDGET_WIDTH)
+                text = st.text_input(spec.label, width=_WIDGET_WIDTH)
+                values[param] = text
+                labels[param] = text
 
         # 渲染 fallback 简单参数（排在注册表参数之后）
         for param in active_fallback:
@@ -255,7 +271,12 @@ def render_filters(
                     label, placeholder="留空表示不筛选", width=_WIDGET_WIDTH
                 )
                 values[param] = int(raw) if raw.strip().isdigit() else None
+                labels[param] = (
+                    str(values[param]) if values[param] is not None else None
+                )
             else:
-                values[param] = st.text_input(label, width=_WIDGET_WIDTH)
+                text = st.text_input(label, width=_WIDGET_WIDTH)
+                values[param] = text
+                labels[param] = text
 
-    return values
+    return values, labels
