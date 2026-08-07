@@ -16,11 +16,31 @@ uv sync
 
 ### Entry Point
 
-`app.py` 是唯一入口，负责：登录/登出逻辑、`st.session_state` 初始化（`role`、`tid`、`camp_id`）、多页面导航注册。添加新页面时，在 `app.py` 中声明 `st.Page(...)` 并追加到 `data_pages` 列表。
+`app.py` 是唯一入口，负责：登录/登出逻辑、`st.session_state` 初始化（`role`、`tid`、`camp_id`）、侧边栏查询方式切换（`render_query_backend_selector()`）、多页面导航注册。添加新页面时，在 `app.py` 中声明 `st.Page(...)` 并追加到 `data_pages` 列表。
 
-### Database
+### Database / 查询后端
 
-通过 `st.connection("mysql", type="sql")` 连接 StarRocks（MySQL 协议，port 9030），配置位于 `.streamlit/secrets.toml`，database 为 `warehouse`。SQL 中直接使用表名无需加 schema 前缀。
+页面与筛选器统一通过 `utils.query.get_conn()` 取连接，**勿再直接写** `st.connection("mysql")`：
+
+| 后端 | 实现 | 场景 |
+|------|------|------|
+| `mysql` | `st.connection("mysql", type="sql")` | 能直连 StarRocks（MySQL 协议，port 9030） |
+| `metabase` | `MetabaseQueryConn` → `/api/dataset` | 本地连不上线上库 |
+
+配置（`.streamlit/secrets.toml`）：
+
+- `[connections.mysql]` — 直连
+- `[metabase]` — `base_url` / `username` / `password` / `db_id` / `cookies_file`
+- `query_backend` — 默认 `"mysql"` 或 `"metabase"`（本地无库建议后者）
+
+侧边栏可随时覆盖默认后端。两种后端均暴露 `conn.query(sql, params=..., ttl=0) -> DataFrame`。  
+SQL 中表名一般无需 schema 前缀（直连已指向 `warehouse`）；经 Metabase 时可写 `warehouse.table`。
+
+**相关模块**
+
+- `utils/metabase_client.py` — 登录/cookie、`:param` 绑定为字面量、`rows`/`cols` → DataFrame；`client_from_secrets()` 读 secrets / 环境变量
+- `utils/query.py` — `get_conn()`、`get_query_backend()`、`render_query_backend_selector()`
+- 根目录 `metabase.py` — CLI 烟雾测试（`uv run python metabase.py --sql "..."`）
 
 ### Metabase 模板系统（`utils/`）
 
@@ -38,7 +58,7 @@ uv sync
 - `FilterSpec` dataclass：`widget` 为 `"multiselect"` / `"selectbox"` / `"text_input"`；选项 SQL 必须返回 `value`（整数 ID）和 `label`（显示文本）两列；支持联动字段 `depends_on` + `cascade_clause`（见下）；支持 `default_first`（见下）
 - `FILTER_REGISTRY` — DB 驱动的筛选项注册表；同一数据源的单/多选变体共享同一 SQL 常量（如 `_TERM_SQL`），分别注册为 `term_id`（selectbox）和 `term_ids`（multiselect）；**注册顺序即渲染顺序，被依赖项必须在依赖项之前**
 - `SESSION_KEYS` — 从 session_state 静默读取、不渲染 widget（目前：`tid`、`camp_id`）
-- `render_filters(conn, template_params, fallbacks=None)` — 按注册表渲染 widget；返回 `(values, labels)`：`values` 供 `build_sql`，`labels` 为同键可读文本（供页面文案）；`fallbacks` 传入不需要 DB 查询的简单筛选项（text_input / number_input），与注册表项统一排在同一行
+- `render_filters(conn, template_params, fallbacks=None)` — 按注册表渲染 widget；返回 `(values, labels)`：`values` 供 `build_sql`，`labels` 为同键可读文本（供页面文案）；`fallbacks` 传入不需要 DB 查询的简单筛选项（text_input / number_input），与注册表项统一排在同一行；`conn` 须来自 `get_conn()`
 
 **`utils/page_copy.py`**
 - `fill_template(template, **ctx)` — `str.format` 填充 `{name}`（与 Metabase `{{param}}` 分开）
@@ -82,13 +102,14 @@ uv sync
 ```python
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
+from utils.query import get_conn
 
 TEMPLATE = """<Metabase SQL，保留 {{param}} 和 [[ ]] 语法>"""
 
 _SS_FILTERS = "<page_name>_filters"        # 冻结筛选条件；首次进入也会写入
 _SS_LABELS = "<page_name>_filter_labels"   # 与筛选一并冻结的可读 label（文案用）
 
-conn = st.connection("mysql", type="sql")
+conn = get_conn()
 filter_values, filter_labels = render_filters(
     conn,
     extract_params(TEMPLATE),
@@ -228,3 +249,6 @@ with st.container(
 
 - `app.py` 顶部硬编码了 `tid=20` / `camp_id=102150` 供本地开发使用；正式环境登录流程应从用户选择中写入这两个值
 - 当前只有 `role == "Admin"` 时才显示数据页面；新增角色需在 `app.py` 的 `page_dict` 分支中添加
+- 新页面一律 `from utils.query import get_conn` + `conn = get_conn()`；筛选器传入的 `conn` 也须同源，保证选项 SQL 与业务查询后端一致
+- 本地无库：`secrets.toml` 设 `query_backend = "metabase"` 并配好 `[metabase]`；`cookies.txt` 勿提交
+- 验证 Metabase 通道：`uv run python metabase.py --sql "select 1 as n"`

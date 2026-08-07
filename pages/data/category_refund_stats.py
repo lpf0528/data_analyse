@@ -9,6 +9,7 @@ import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
 from utils.page_copy import fill_template, join_labels
+from utils.query import get_conn
 
 # Metabase 原样模板（去掉 use warehouse;：连接已指向 warehouse）
 TEMPLATE = """
@@ -164,7 +165,7 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
     st.warning("请先登录")
     st.stop()
 
-conn = st.connection("mysql", type="sql")
+conn = get_conn()
 
 filter_values, filter_labels = render_filters(
     conn,

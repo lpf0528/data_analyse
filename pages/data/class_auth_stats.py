@@ -9,6 +9,7 @@ import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
 from utils.page_copy import fill_template, join_labels
+from utils.query import get_conn
 
 TEMPLATE = """
 SELECT
@@ -51,7 +52,7 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
     st.warning("请先登录")
     st.stop()
 
-conn = st.connection("mysql", type="sql")
+conn = get_conn()
 
 # 筛选区由 render_filters 统一渲染；同时取 labels 供文案填充
 filter_values, filter_labels = render_filters(conn, extract_params(TEMPLATE))

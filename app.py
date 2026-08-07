@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.query import render_query_backend_selector
 
 st.set_page_config(
     layout='wide'
@@ -11,6 +12,9 @@ if "role" not in st.session_state:
     st.session_state.role = 'Admin'  # None
 
 ROLES = [None, "Requester", "Admin"]
+
+# 侧边栏：数据库直连 / Metabase API（本地无库时切 Metabase）
+render_query_backend_selector()
 
 
 def login():

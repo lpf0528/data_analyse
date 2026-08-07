@@ -10,7 +10,9 @@ disable-model-invocation: true
 
 # Metabase → Streamlit 页面生成
 
-将 Metabase SQL 模板落地为 `pages/data/` 下的可查询页面，复用 `utils/metabase.py` + `utils/filters.py`。
+将 Metabase SQL 模板落地为 `pages/data/` 下的可查询页面，复用 `utils/metabase.py` + `utils/filters.py` + `utils.query.get_conn()`。
+
+查询必须走 `get_conn()`（支持侧边栏在 StarRocks 直连 / Metabase API 间切换），**禁止**再写 `st.connection("mysql", ...)`。详见 `AGENTS.md`「Database / 查询后端」与 `README.md`。
 
 ## 输入
 
@@ -34,6 +36,7 @@ disable-model-invocation: true
 用 Read 工具读取（勿凭记忆）：
 
 - `utils/filters.py` — 当前 `SESSION_KEYS`、`FILTER_REGISTRY`、已有 `_XXXX_SQL`
+- `utils/query.py` — `get_conn()` 用法（勿直连 `st.connection`）
 - `app.py` — 现有 `st.Page` 与 `data_pages` 注册方式
 - 可选对照：`pages/data/*.py` 已有页面结构
 
@@ -133,6 +136,7 @@ fallbacks = {
 import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
+from utils.query import get_conn
 
 TEMPLATE = """
 <原始 Metabase SQL，保留 {{param}} 与 [[ ]]>
@@ -144,7 +148,7 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
     st.warning("请先登录")
     st.stop()
 
-conn = st.connection("mysql", type="sql")
+conn = get_conn()
 
 filter_values = render_filters(
     conn,
