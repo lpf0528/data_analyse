@@ -1,20 +1,17 @@
 import streamlit as st
-from utils.query import render_query_backend_selector
+from utils.query import render_sidebar_controls
 
 st.set_page_config(
     layout='wide'
 )
-
-st.session_state.tid = 20
-st.session_state.camp_id = 102150
 
 if "role" not in st.session_state:
     st.session_state.role = 'Admin'  # None
 
 ROLES = [None, "Requester", "Admin"]
 
-# 侧边栏：数据库直连 / Metabase API（本地无库时切 Metabase）
-render_query_backend_selector()
+# 侧边栏：查询方式（默认 Metabase）+ tid/camp_id 列表（默认第一项）
+render_sidebar_controls()
 
 
 def login():

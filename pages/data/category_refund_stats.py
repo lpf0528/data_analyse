@@ -5,6 +5,8 @@
 标题+静态简介 → 筛选 → 查询 → SQL → metric + 洞察 → tabs。
 必填：下单起止日期；期次默认第一项；首次进入自动查询一次（日期未填则提示）。
 """
+from datetime import date
+
 import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
@@ -41,9 +43,9 @@ authorize_account AS (
         ON t1.term_id = t2.id AND t2.tid = {{tid}}
     JOIN [shuffle] warehouse.dwd_lh_classes t3
         ON t1.grant_class_id = t3.id
-    LEFT JOIN dim_origin_account_relation ar
+    LEFT JOIN warehouse.dim_origin_account_relation ar
         ON t1.account_id = ar.origin_account_id
-    LEFT JOIN dim_origin_account_relation ar2
+    LEFT JOIN warehouse.dim_origin_account_relation ar2
         ON ar2.account_main_id = ar.account_main_id
     WHERE t1.student_status NOT IN ('abandon')
 ),
@@ -72,7 +74,7 @@ account_repurchase_order AS (
         IFNULL(t6.channel_no, '0') AS deposit_plan_id,
         IF(t2.pay_status = 1, 0, IF(t2.order_source != 'loan_plan', 0, IF(t2.pay_amount = t2.pay_fee or (t2.pay_status = 2 and t2.is_deposit = 0), 1,2)))AS deposit_plan_status,
         IF(t2.pay_status = 1, -1, IF(t2.order_source != 'loan_plan', t2.is_deposit, IF((t2.pay_amount = t2.pay_fee or (t2.pay_status = 2 and t2.is_deposit = 0)) AND t2.max_pay_time = IFNULL(t6.pay_time, t2.pay_time) , 3, 2)))  AS deposit_status
-    FROM dwd_class_term_student_order t2
+    FROM warehouse.dwd_class_term_student_order t2
     JOIN [shuffle] repurchase_term t4
         ON t4.term_id = t2.term_id
     LEFT JOIN   warehouse.dim_mdb_liveroom_channel t3
@@ -83,7 +85,7 @@ account_repurchase_order AS (
         ON t2.pay_product_id = t8.id AND t2.source = 1
     LEFT JOIN   warehouse.dim_mdb_product_category t9
         ON t8.first_class = t9.id AND t2.source = 1
-    LEFT JOIN [shuffle] ods_miniprogram_platform_transaction t6
+    LEFT JOIN [shuffle] warehouse.ods_miniprogram_platform_transaction t6
         ON t2.order_source = 'loan_plan'
         AND t2.order_id = t6.order_id
         AND t6.pay_state = 1
@@ -167,12 +169,22 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
 
 conn = get_conn()
 
+# 起止日期默认当天；首次进入即可自动查询，无需手填
+_today = date.today().isoformat()
 filter_values, filter_labels = render_filters(
     conn,
     extract_params(TEMPLATE),
     fallbacks={
-        "start_date": {"label": "开始日期 (YYYY-MM-DD)", "widget": "text_input"},
-        "end_date": {"label": "结束日期 (YYYY-MM-DD)", "widget": "text_input"},
+        "start_date": {
+            "label": "开始日期 (YYYY-MM-DD)",
+            "widget": "text_input",
+            "default": _today,
+        },
+        "end_date": {
+            "label": "结束日期 (YYYY-MM-DD)",
+            "widget": "text_input",
+            "default": _today,
+        },
     },
 )
 

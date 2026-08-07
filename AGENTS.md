@@ -16,7 +16,9 @@ uv sync
 
 ### Entry Point
 
-`app.py` 是唯一入口，负责：登录/登出逻辑、`st.session_state` 初始化（`role`、`tid`、`camp_id`）、侧边栏查询方式切换（`render_query_backend_selector()`）、多页面导航注册。添加新页面时，在 `app.py` 中声明 `st.Page(...)` 并追加到 `data_pages` 列表。
+`app.py` 是唯一入口，负责：登录/登出逻辑、`st.session_state` 初始化（`role`）、侧边栏控件（`render_sidebar_controls()`：查询方式 + tid/camp_id 列表）、多页面导航注册。添加新页面时，在 `app.py` 中声明 `st.Page(...)` 并追加到 `data_pages` 列表。
+
+侧边栏营期列表定义在 `utils/query.py` 的 `CAMP_OPTIONS`（当前仅 `{tid: 378, camp_id: 108108}`，默认第一项）；选中后写入 `session_state.tid` / `camp_id`，供 `SESSION_KEYS` 使用。勿在 `app.py` 里每轮硬编码覆盖这两个值。
 
 ### Database / 查询后端
 
@@ -29,17 +31,20 @@ uv sync
 
 配置（`.streamlit/secrets.toml`）：
 
-- `[connections.mysql]` — 直连
+- `[connections.mysql]` — 直连（`database = "warehouse"`，无 schema 前缀也可）
 - `[metabase]` — `base_url` / `username` / `password` / `db_id` / `cookies_file`
 - `query_backend` — 默认 `"mysql"` 或 `"metabase"`（本地无库建议后者）
 
-侧边栏可随时覆盖默认后端。两种后端均暴露 `conn.query(sql, params=..., ttl=0) -> DataFrame`。  
-SQL 中表名一般无需 schema 前缀（直连已指向 `warehouse`）；经 Metabase 时可写 `warehouse.table`。
+侧边栏可随时覆盖默认后端。两种后端均暴露 `conn.query(sql, params=..., ttl=0) -> DataFrame`。
+
+**表名约定（重要）**：Metabase 连接的默认库常为 `doris`，未加 schema 会报
+`Table [...] does not exist in database [doris]`。  
+业务 SQL / 筛选选项 SQL **一律写** `warehouse.table` 或 `` `warehouse`.`table` ``（直连同样可用）。
 
 **相关模块**
 
 - `utils/metabase_client.py` — 登录/cookie、`:param` 绑定为字面量、`rows`/`cols` → DataFrame；`client_from_secrets()` 读 secrets / 环境变量
-- `utils/query.py` — `get_conn()`、`get_query_backend()`、`render_query_backend_selector()`
+- `utils/query.py` — `get_conn()`、`get_query_backend()`、`render_sidebar_controls()`（查询方式默认 Metabase + `CAMP_OPTIONS`）
 - 根目录 `metabase.py` — CLI 烟雾测试（`uv run python metabase.py --sql "..."`）
 
 ### Metabase 模板系统（`utils/`）
@@ -247,8 +252,9 @@ with st.container(
 
 ### 开发注意事项
 
-- `app.py` 顶部硬编码了 `tid=20` / `camp_id=102150` 供本地开发使用；正式环境登录流程应从用户选择中写入这两个值
+- 本地 tid/camp_id 由侧边栏 `CAMP_OPTIONS` 选择；正式环境登录流程应从用户选择中写入这两个值
 - 当前只有 `role == "Admin"` 时才显示数据页面；新增角色需在 `app.py` 的 `page_dict` 分支中添加
 - 新页面一律 `from utils.query import get_conn` + `conn = get_conn()`；筛选器传入的 `conn` 也须同源，保证选项 SQL 与业务查询后端一致
-- 本地无库：`secrets.toml` 设 `query_backend = "metabase"` 并配好 `[metabase]`；`cookies.txt` 勿提交
+- 查询后端默认 `metabase`；可在 secrets 设 `query_backend = "mysql"` 或侧边栏切换；`cookies.txt` 勿提交
 - 验证 Metabase 通道：`uv run python metabase.py --sql "select 1 as n"`
+- 新增调试营期：在 `utils/query.py` 的 `CAMP_OPTIONS` 追加 `{"tid": ..., "camp_id": ...}`

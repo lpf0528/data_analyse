@@ -6,7 +6,7 @@
     conn = get_conn()
     df = conn.query(sql, params=sa_params, ttl=0)
 
-侧边栏切换由 render_query_backend_selector() 负责，写入 session_state。
+侧边栏：查询方式 + tid/camp_id 营期上下文，由 render_sidebar_controls() 负责。
 """
 from __future__ import annotations
 
@@ -21,6 +21,12 @@ QueryBackend = Literal["mysql", "metabase"]
 
 _SS_BACKEND = "query_backend"
 _SS_MB_CLIENT = "_metabase_client"
+_SS_CAMP_IDX = "camp_context_idx"
+
+# 本地/调试可选的团队+营期；侧边栏列表，默认第一项
+CAMP_OPTIONS: list[dict[str, int]] = [
+    {"tid": 378, "camp_id": 108108},
+]
 
 
 class QueryConn(Protocol):
@@ -52,12 +58,12 @@ class MetabaseQueryConn:
 
 
 def _default_backend() -> QueryBackend:
-    """secrets 可设 query_backend = "metabase"；缺省 mysql。"""
+    """secrets 可设 query_backend；缺省 metabase（本地通常无直连库）。"""
     try:
-        raw = st.secrets.get("query_backend", "mysql")
+        raw = st.secrets.get("query_backend", "metabase")
     except Exception:
-        raw = "mysql"
-    return "metabase" if str(raw).lower() == "metabase" else "mysql"
+        raw = "metabase"
+    return "mysql" if str(raw).lower() == "mysql" else "metabase"
 
 
 def get_query_backend() -> QueryBackend:
@@ -71,21 +77,34 @@ def set_query_backend(backend: QueryBackend) -> None:
     st.session_state[_SS_BACKEND] = backend
 
 
-def render_query_backend_selector() -> QueryBackend:
-    """
-    侧边栏切换数据源。本地无库时可切到 Metabase。
+def _camp_label(opt: dict[str, int]) -> str:
+    return f"tid={opt['tid']} · camp_id={opt['camp_id']}"
 
-    须在各页查询前调用（建议放在 app.py navigation 之前）。
+
+def _sync_camp_context(idx: int) -> None:
+    """把列表选中项写入 SESSION_KEYS 使用的 tid / camp_id。"""
+    if not CAMP_OPTIONS:
+        return
+    idx = max(0, min(int(idx), len(CAMP_OPTIONS) - 1))
+    chosen = CAMP_OPTIONS[idx]
+    st.session_state.tid = chosen["tid"]
+    st.session_state.camp_id = chosen["camp_id"]
+
+
+def render_sidebar_controls() -> QueryBackend:
     """
-    current = get_query_backend()
-    options: list[QueryBackend] = ["mysql", "metabase"]
-    labels = {
-        "mysql": "数据库（StarRocks）",
-        "metabase": "Metabase API",
-    }
-    # 只通过 key 管值，避免 default + session_state 双设告警
+    侧边栏：查询方式 + tid/camp_id 列表（默认第一项）。
+
+    须在各页查询前调用（放在 app.py navigation 之前）。
+    """
     if _SS_BACKEND not in st.session_state:
-        st.session_state[_SS_BACKEND] = current
+        st.session_state[_SS_BACKEND] = _default_backend()
+
+    options: list[QueryBackend] = ["metabase", "mysql"]
+    labels = {
+        "metabase": "Metabase API",
+        "mysql": "数据库（StarRocks）",
+    }
 
     with st.sidebar:
         st.radio(
@@ -93,14 +112,34 @@ def render_query_backend_selector() -> QueryBackend:
             options=options,
             format_func=lambda x: labels[x],
             key=_SS_BACKEND,
-            help="本地连不上线上库时，可切换为经 Metabase 执行 SQL。",
+            help="本地连不上线上库时使用 Metabase；默认可在 secrets 设 query_backend。",
         )
         backend = get_query_backend()
         if backend == "metabase":
             st.caption("经 Metabase `/api/dataset` 查询")
         else:
             st.caption("经 `st.connection('mysql')` 直连")
+
+        # tid/camp_id：只通过 key 管选中项，勿再传 index，避免双设告警
+        camp_indices = list(range(len(CAMP_OPTIONS)))
+        st.selectbox(
+            "团队 / 营期",
+            options=camp_indices,
+            format_func=lambda i: _camp_label(CAMP_OPTIONS[i]),
+            key=_SS_CAMP_IDX,
+            help="写入 session 的 tid、camp_id，供各页 SESSION_KEYS 与筛选使用。",
+        )
+        _sync_camp_context(st.session_state.get(_SS_CAMP_IDX, 0))
+        st.caption(
+            f"当前 tid={st.session_state.tid} · camp_id={st.session_state.camp_id}"
+        )
+
     return backend
+
+
+def render_query_backend_selector() -> QueryBackend:
+    """兼容旧名；等同 render_sidebar_controls()。"""
+    return render_sidebar_controls()
 
 
 def _get_metabase_client() -> MetabaseClient:

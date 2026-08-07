@@ -13,9 +13,10 @@ from utils.page_copy import fill_template, join_labels
 from utils.query import get_conn
 
 # COUNT / DATA 共用 FROM+WHERE，保证总数与列表筛选条件一致
+# 表名带 warehouse.：经 Metabase 时默认库为 doris，无 schema 会找不到表
 _FROM_WHERE = """
-FROM `ods_lh_teaching_lh_teaching_student` `s`
-LEFT JOIN `dwd_lh_classes` `c`
+FROM `warehouse`.`ods_lh_teaching_lh_teaching_student` `s`
+LEFT JOIN `warehouse`.`dwd_lh_classes` `c`
   ON `s`.`big_class_id` = `c`.`id`
 WHERE 1=1
   AND `s`.`tid` = {{tid}}

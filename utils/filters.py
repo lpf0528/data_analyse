@@ -24,31 +24,32 @@ from typing import Literal
 # 共享 SQL 片段（多选/单选变体复用同一查询）
 # ---------------------------------------------------------------------------
 # 期次选项：按 rank 筛选，显示"第N期 (ID:x)"
+# 表名加 warehouse.：Metabase 库连接默认库为 doris，无前缀会报 table does not exist
 _TERM_SQL = (
     "SELECT id AS value,"
     " CONCAT('第', `rank`, '期 (ID:', id, ')') AS label"
-    " FROM dim_lh_teaching_class_term"
-    " WHERE tid = :tid AND `rank` IN (84, 71)"
+    " FROM warehouse.dim_lh_teaching_class_term"
+    " WHERE tid = :tid ORDER BY `rank` DESC"
 )
 
 # 班级选项：按 ID 白名单过滤，排除空名称
 _CLASS_SQL = (
     "SELECT id AS value, class_name AS label"
-    " FROM dwd_lh_classes"
+    " FROM warehouse.dwd_lh_classes"
     " WHERE id IN (10060654, 10055057, 10060762) AND class_name <> ''"
 )
 # 自然周选项：按 ID 白名单过滤，排除空名称
 _WEEK_SQL = (
     "SELECT id AS value,"
     "CONCAT(`year`,'年',`month`,'月第',`week`, '周 (', DATE(`start_time`),'~' ,DATE(`end_time`),')') AS label "
-    "FROM lh_teaching_weeks_conf "
+    "FROM warehouse.lh_teaching_weeks_conf "
     "WHERE tid = :tid order by end_time desc"
 )
 
 # 品类选项：商品品类维度表
 _CATEGORY_SQL = (
     "SELECT id AS value, name AS label"
-    " FROM dim_mdb_product_category"
+    " FROM warehouse.dim_mdb_product_category"
     " WHERE name <> ''"
     " ORDER BY id"
 )
@@ -141,7 +142,8 @@ SESSION_KEYS: set[str] = {"tid", "camp_id"}
 # 内部辅助函数
 # ---------------------------------------------------------------------------
 
-FallbackSpec = dict  # {"label": str, "widget": "text_input" | "number_input"}
+# default：text_input / number_input 的初始值（仅首次渲染生效，之后由 widget 状态保持）
+FallbackSpec = dict  # {"label": str, "widget": "text_input" | "number_input", "default"?: str}
 
 
 def _build_options_sql(spec: FilterSpec, current_values: dict) -> str:
@@ -279,17 +281,26 @@ def render_filters(
             fb = fallbacks[param]
             widget = fb.get("widget", "text_input")
             label = fb.get("label", param)
+            # 勿与 key 同时再写 session_state；value 仅作首次默认
+            default = fb.get("default", "")
             if widget == "number_input":
                 # 用 text_input 接收输入，非纯数字时返回 None 而非报错
                 raw = st.text_input(
-                    label, placeholder="留空表示不筛选", width=_WIDGET_WIDTH
+                    label,
+                    value=str(default) if default not in (None, "") else "",
+                    placeholder="留空表示不筛选",
+                    width=_WIDGET_WIDTH,
                 )
                 values[param] = int(raw) if raw.strip().isdigit() else None
                 labels[param] = (
                     str(values[param]) if values[param] is not None else None
                 )
             else:
-                text = st.text_input(label, width=_WIDGET_WIDTH)
+                text = st.text_input(
+                    label,
+                    value=str(default) if default not in (None, "") else "",
+                    width=_WIDGET_WIDTH,
+                )
                 values[param] = text
                 labels[param] = text
 

@@ -92,6 +92,8 @@ df = conn.query(sql, params=sa_params, ttl=0)  # 两种后端签名一致
 - `app.py` 调用 `render_query_backend_selector()` 渲染侧边栏切换
 - Metabase 路径会把 `:param` 绑定为 SQL 字面量，并将返回的 `rows` / `cols` 转为 `pandas.DataFrame`
 - 切换后端后整页 rerun，筛选选项与业务查询都会走新后端
+- **表名必须带 `warehouse.`**：Metabase 默认库常为 `doris`，无前缀会报
+  `Table [...] does not exist in database [doris]`；直连同样兼容带前缀写法
 
 ## 核心机制
 
