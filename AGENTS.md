@@ -107,7 +107,7 @@ uv sync
 ```python
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
-from utils.query import get_conn
+from utils.query import get_conn, show_sql_and_query
 
 TEMPLATE = """<Metabase SQL，保留 {{param}} 和 [[ ]] 语法>"""
 
@@ -169,11 +169,8 @@ if not saved_filters.get("term_id"):
 
 sql, sa_params = build_sql(TEMPLATE, saved_filters)
 
-with st.expander("执行的 SQL", expanded=False):   # 或 expanded=True
-    st.code(format_display_sql(sql, sa_params), language="sql")
-
-with st.spinner("查询中..."):
-    df = conn.query(sql, params=sa_params, ttl=0)
+# 先展示 SQL；失败时 SQL 仍保留，并 st.error
+df = show_sql_and_query(conn, sql, sa_params, ttl=0)
 
 # 若同时需要图表和表格：
 tab_chart, tab_table = st.tabs(["图表", "表格"])
@@ -185,7 +182,8 @@ with tab_table:
 
 - **首次进入自动查询**：页面加载时若 `_SS_FILTERS` 尚未写入，立即用当前 `filter_values`（含期次默认第一项）冻结并执行查询；之后仅点「查询」才更新冻结条件
 - `number_input` fallback 实际渲染为 `st.text_input`，输入非纯数字时返回 `None`（已在 `render_filters` 内处理）
-- SQL 展示顺序：先 expander 再 spinner/dataframe（避免结果出现前看不到 SQL）
+- SQL 展示顺序：统一 `show_sql_and_query`（先 expander 再 query；失败不吞掉 SQL）
+- 筛选选项查询失败时 `render_filters` 仅 warning + 空选项，不阻断整页
 - **禁止**使用已废弃的 `use_container_width`；改用 `width="stretch"` / `width="content"` / 像素值
 - 表格统一 `hide_index=True`；一般不必再展示「查询结果 N 条」metric（分页列表用底栏「共 N 条」即可）
 

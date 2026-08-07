@@ -16,6 +16,36 @@ import pandas as pd
 import streamlit as st
 
 from utils.metabase_client import MetabaseClient, client_from_secrets
+from utils.metabase import format_display_sql
+
+
+def show_sql_and_query(
+    conn: Any,
+    sql: str,
+    params: dict | None = None,
+    *,
+    ttl: int = 0,
+    expanded: bool = False,
+    spinner_text: str = "查询中...",
+    expander_label: str = "执行的 SQL",
+) -> pd.DataFrame:
+    """
+    先渲染可展开的 SQL，再执行查询。
+
+    无论成败 SQL 都会留在页面上；失败时 st.error 并 st.stop()。
+    """
+    params = params or {}
+    with st.expander(expander_label, expanded=expanded):
+        st.code(format_display_sql(sql, params), language="sql")
+    try:
+        with st.spinner(spinner_text):
+            return conn.query(sql, params=params, ttl=ttl)
+    except Exception as exc:
+        # SQL 已在上方展示，便于对照排查（超时 / 语法 / 缺表等）
+        st.error(f"查询失败：{exc}")
+        st.stop()
+        raise  # 供类型检查；st.stop() 不会返回
+
 
 QueryBackend = Literal["mysql", "metabase"]
 

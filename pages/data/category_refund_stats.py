@@ -5,13 +5,13 @@
 标题+静态简介 → 筛选 → 查询 → SQL → metric + 洞察 → tabs。
 必填：下单起止日期；期次默认第一项；首次进入自动查询一次（日期未填则提示）。
 """
-from datetime import date
+from datetime import date, timedelta
 
 import streamlit as st
-from utils.metabase import extract_params, build_sql, format_display_sql
+from utils.metabase import extract_params, build_sql
 from utils.filters import render_filters
 from utils.page_copy import fill_template, join_labels
-from utils.query import get_conn
+from utils.query import get_conn, show_sql_and_query
 
 # Metabase 原样模板（去掉 use warehouse;：连接已指向 warehouse）
 TEMPLATE = """
@@ -169,8 +169,9 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
 
 conn = get_conn()
 
-# 起止日期默认当天；首次进入即可自动查询，无需手填
-_today = date.today().isoformat()
+# 起止日期默认最近 15 天（含当天）；首次进入即可自动查询
+_end = date.today()
+_start = _end - timedelta(days=14)
 filter_values, filter_labels = render_filters(
     conn,
     extract_params(TEMPLATE),
@@ -178,12 +179,12 @@ filter_values, filter_labels = render_filters(
         "start_date": {
             "label": "开始日期 (YYYY-MM-DD)",
             "widget": "text_input",
-            "default": _today,
+            "default": _start.isoformat(),
         },
         "end_date": {
             "label": "结束日期 (YYYY-MM-DD)",
             "widget": "text_input",
-            "default": _today,
+            "default": _end.isoformat(),
         },
     },
 )
@@ -217,11 +218,8 @@ if missing:
 
 sql, sa_params = build_sql(TEMPLATE, saved_filters)
 
-with st.expander("执行的 SQL", expanded=False):
-    st.code(format_display_sql(sql, sa_params), language="sql")
-
-with st.spinner("查询中..."):
-    df = conn.query(sql, params=sa_params, ttl=0)
+# 先展示 SQL；查询失败时 SQL 仍留在页面上便于排查
+df = show_sql_and_query(conn, sql, sa_params, ttl=0)
 
 if df.empty:
     st.info("暂无数据")

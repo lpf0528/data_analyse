@@ -6,10 +6,10 @@
 期次由 FilterSpec.default_first 默认选中第一项；首次进入自动查询一次。
 """
 import streamlit as st
-from utils.metabase import extract_params, build_sql, format_display_sql
+from utils.metabase import extract_params, build_sql
 from utils.filters import render_filters
 from utils.page_copy import fill_template, join_labels
-from utils.query import get_conn
+from utils.query import get_conn, show_sql_and_query
 
 TEMPLATE = """
 SELECT
@@ -80,12 +80,8 @@ if not saved_filters.get("term_id"):
 
 sql, sa_params = build_sql(TEMPLATE, saved_filters)
 
-# 先展示 SQL，再 spinner/结果，避免查询中看不到 SQL
-with st.expander("执行的 SQL", expanded=False):
-    st.code(format_display_sql(sql, sa_params), language="sql")
-
-with st.spinner("查询中..."):
-    df = conn.query(sql, params=sa_params, ttl=0)
+# 先展示 SQL；查询失败时 SQL 仍留在页面上便于排查
+df = show_sql_and_query(conn, sql, sa_params, ttl=0)
 
 if df.empty:
     # 空数据不硬填洞察；与 fill_template 分段策略一致

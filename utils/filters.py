@@ -20,6 +20,8 @@ import streamlit as st
 from dataclasses import dataclass, field
 from typing import Literal
 
+import pandas as pd
+
 # ---------------------------------------------------------------------------
 # 共享 SQL 片段（多选/单选变体复用同一查询）
 # ---------------------------------------------------------------------------
@@ -146,6 +148,17 @@ SESSION_KEYS: set[str] = {"tid", "camp_id"}
 FallbackSpec = dict  # {"label": str, "widget": "text_input" | "number_input", "default"?: str}
 
 
+def _query_filter_options(conn, options_sql: str, query_params: dict, label: str):
+    """
+    加载筛选项；失败时告警并返回空表，避免整页因选项 SQL 超时而崩溃。
+    """
+    try:
+        return conn.query(options_sql, params=query_params, ttl=300)
+    except Exception as exc:
+        st.warning(f"加载「{label}」选项失败（页面仍可继续）：{exc}")
+        return pd.DataFrame(columns=["label", "value"])
+
+
 def _build_options_sql(spec: FilterSpec, current_values: dict) -> str:
     """根据已选的依赖值动态拼接联动 SQL。无依赖或依赖未选时返回原始 SQL。"""
     if not spec.cascade_clause or not spec.depends_on:
@@ -229,7 +242,9 @@ def render_filters(
             options_sql = _build_options_sql(spec, values)
 
             if spec.widget == "multiselect":
-                opt_df = conn.query(options_sql, params=query_params, ttl=300)
+                opt_df = _query_filter_options(
+                    conn, options_sql, query_params, spec.label
+                )
                 # 构建 label → value 映射，保持选项顺序
                 opt_map: dict = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
@@ -248,7 +263,9 @@ def render_filters(
                 labels[param] = list(selected)
 
             elif spec.widget == "selectbox":
-                opt_df = conn.query(options_sql, params=query_params, ttl=300)
+                opt_df = _query_filter_options(
+                    conn, options_sql, query_params, spec.label
+                )
                 opt_map = dict(
                     zip(opt_df["label"], opt_df["value"].astype(int)))
                 opt_labels = list(opt_map.keys())

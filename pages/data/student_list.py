@@ -108,8 +108,17 @@ if _SS_FILTERS in st.session_state:
         st.session_state[_SS_SIZE_PREV] = page_size
 
     count_sql, count_params = build_sql(COUNT_TEMPLATE, saved_filters)
-    with st.spinner("查询中..."):
-        total = int(conn.query(count_sql, params=count_params, ttl=0).iloc[0]["total"])
+    # COUNT 也先展示 SQL，失败时不至于整页白屏无语句
+    with st.expander("执行的 SQL（COUNT）", expanded=False):
+        st.code(format_display_sql(count_sql, count_params), language="sql")
+    try:
+        with st.spinner("查询中..."):
+            total = int(
+                conn.query(count_sql, params=count_params, ttl=0).iloc[0]["total"]
+            )
+    except Exception as exc:
+        st.error(f"COUNT 查询失败：{exc}")
+        st.stop()
 
     name_raw = (saved_filters.get("name") or "").strip()
     st.caption(
@@ -166,6 +175,10 @@ if _SS_FILTERS in st.session_state:
     with sql_slot.expander("执行的 SQL", expanded=False):
         st.code(format_display_sql(data_sql, data_params), language="sql")
 
-    with st.spinner("查询中..."):
-        df = conn.query(data_sql, params=data_params, ttl=0)
+    try:
+        with st.spinner("查询中..."):
+            df = conn.query(data_sql, params=data_params, ttl=0)
+    except Exception as exc:
+        dataframe_slot.error(f"查询失败：{exc}")
+        st.stop()
     dataframe_slot.dataframe(df, width="stretch", hide_index=True)
