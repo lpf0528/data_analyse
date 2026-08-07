@@ -45,6 +45,14 @@ _WEEK_SQL = (
     "WHERE tid = :tid order by end_time desc"
 )
 
+# 品类选项：商品品类维度表
+_CATEGORY_SQL = (
+    "SELECT id AS value, name AS label"
+    " FROM dim_mdb_product_category"
+    " WHERE name <> ''"
+    " ORDER BY id"
+)
+
 # ---------------------------------------------------------------------------
 # 注册表数据结构
 # ---------------------------------------------------------------------------
@@ -117,6 +125,12 @@ FILTER_REGISTRY: dict[str, FilterSpec] = {
         widget="selectbox",
         sql=_WEEK_SQL,
         session_params=["tid"]
+    ),
+    # 品类 — 多选（复购/退款订单等按品类筛选；无联动）
+    "category_ids": FilterSpec(
+        label="品类",
+        widget="multiselect",
+        sql=_CATEGORY_SQL,
     ),
 }
 

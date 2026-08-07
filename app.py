@@ -50,7 +50,12 @@ class_auth_stats = st.Page(
     title="班级授权学员数",
     icon=":material/bar_chart:",
 )
-data_pages = [student_list, class_auth_stats]
+category_refund_stats = st.Page(
+    "pages/data/category_refund_stats.py",
+    title="品类退款分析",
+    icon=":material/money_off:",
+)
+data_pages = [student_list, class_auth_stats, category_refund_stats]
 
 # 首页
 # st.title("Request manager")
