@@ -3,7 +3,7 @@
 
 布局约定见 AGENTS.md「页面结果展示惯例」与「说明 / KPI / 模板洞察」：
 标题+静态简介 → 筛选 → 查询 → SQL → metric + 洞察 → tabs。
-必填：下单起止日期；期次默认第一项；首次进入自动查询一次（日期未填则提示）。
+必填：下单起止日期（筛选项最前）；期次可选（不默认选中）；首次进入自动查询。
 """
 from datetime import date, timedelta
 
@@ -169,7 +169,7 @@ if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
 
 conn = get_conn()
 
-# 起止日期默认最近 15 天（含当天）；首次进入即可自动查询
+# 日期最前且必填（默认最近 15 天）；期次本页可空选（不 default_first）
 _end = date.today()
 _start = _end - timedelta(days=14)
 filter_values, filter_labels = render_filters(
@@ -187,6 +187,8 @@ filter_values, filter_labels = render_filters(
             "default": _end.isoformat(),
         },
     },
+    fallbacks_first=True,
+    spec_overrides={"term_ids": {"default_first": False}},
 )
 
 
