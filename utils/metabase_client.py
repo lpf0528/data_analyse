@@ -18,7 +18,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://metabase.goweike.cn"
-DEFAULT_DB_ID = 246
+DEFAULT_DB_ID = 426
 DEFAULT_COOKIES_FILE = Path("cookies.txt")
 
 
