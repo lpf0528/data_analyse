@@ -14,7 +14,7 @@ description: >
 - 用户提到「某营期、某班级、某周」时，这些是**筛选条件**，必须用 `{{variable}}`，不可硬编码
 - 具体值由 Metabase 用户运行时填入
 - 职责：识别「分组维度」+「聚合指标」+「可筛选字段」→ 产出标准模板
-- 下游若需 Streamlit 页面，将本 skill 产出的 SQL + 变量说明表交给 `metabse-page` skill
+- 下游若需 Streamlit 页面，将本 skill 产出的 SQL + 变量说明表交给 `metabase-page` skill
 
 ## 业务层级
 

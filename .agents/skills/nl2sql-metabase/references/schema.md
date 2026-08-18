@@ -473,31 +473,3 @@ WHERE `aao`.`pay_status` = 2
 GROUP BY `aao`.`class_id`, `aao`.`class_name`
 ORDER BY `total_pay_fee` DESC
 ```
-
----
-<!--
-新增汇总表模板（复制此块填写）：
-
-### <表名>（<注释>）
-
-- **alias**: `<alias>`
-- **use_for**: <适用场景描述>
-- **global_fields**: <填写含有的 tid / camp_id 等全局隔离字段，无则填"无">
-- **required_filters**: <强制注入的条件（无 [[]]），通常是分区键/快照键>
-  ```sql
-  AND `<alias>`.`<field>` = {{<var>}}
-  ```
-- **optional_filters**: <可选条件，有 [[]]>
-  ```sql
-  [[ AND `<alias>`.`<field>` IN ({{<vars>}}) ]]
-  ```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| ... | ... | ... |
-
-**示例 1：<场景描述>**
-```sql
--- SQL
-```
--->

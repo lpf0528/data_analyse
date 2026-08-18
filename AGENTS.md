@@ -2,6 +2,19 @@
 
 本文件为仓库级 Agent 开发指引，供 Cursor、Claude Code 及其他 Agent 默认读取。
 
+## Agent Configurations & Customizations (.agents/)
+
+项目所有通用 Agent 规则、技能与 MCP 服务统一维护在 `.agents/` 目录：
+
+- **MCP 配置**: `.agents/mcp_config.json`（已集成 `context7` 服务：`@upstash/context7-mcp`）
+- **规则指引**:
+  - `.agents/rules/context7-streamlit.md`: 涉及 Streamlit 或第三方库 API/组件变动时，优先通过 Context7 MCP 检索最新文档
+- **Skills 技能库**:
+  - `metabase-page` (`.agents/skills/metabase-page/SKILL.md`): 将 Metabase SQL 模板落地为 Streamlit 数据页面
+  - `nl2sql-metabase` (`.agents/skills/nl2sql-metabase/SKILL.md`): 将自然语言转为 Metabase SQL 模板（依赖 `references/schema.md`）
+  - `developing-with-streamlit` (`.agents/skills/developing-with-streamlit/SKILL.md`): Streamlit 应用开发与 UI 调整
+  - `grill-me` / `grilling`: 方案交互讨论与需求对齐
+
 ## Commands
 
 ```bash

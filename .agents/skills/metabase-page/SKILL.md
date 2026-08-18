@@ -1,10 +1,10 @@
 ---
-name: metabse-page
+name: metabase-page
 description: >
   根据 Metabase SQL 模板与变量说明表，生成 Streamlit 数据查询页面：解析参数分类、
   补全 FILTER_REGISTRY、处理 fallback 筛选项，并注册到 app.py。
   在用户提供 Metabase SQL + 变量表、要求新建/生成数据页面，或从 nl2sql-metabase
-  下游落地 Streamlit 页面时使用。
+  下游落地 Streamlit 页面时使用。（兼容别名 metabse-page）
 disable-model-invocation: true
 ---
 
