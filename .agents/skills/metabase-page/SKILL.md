@@ -2,7 +2,7 @@
 name: metabase-page
 description: >
   根据 Metabase SQL 模板与变量说明表，生成 Streamlit 数据查询页面：解析参数分类、
-  补全 FILTER_REGISTRY、处理 fallback 筛选项，并注册到 app.py。
+  询问页面风格（Dashboard / Report / List）、补全 FILTER_REGISTRY、处理 fallback 筛选项，并注册到 app.py。
   在用户提供 Metabase SQL + 变量表、要求新建/生成数据页面，或从 nl2sql-metabase
   下游落地 Streamlit 页面时使用。（兼容别名 metabse-page）
 disable-model-invocation: true
@@ -27,7 +27,34 @@ disable-model-invocation: true
 |--------|------|------|----------|----------|
 | tid | Number | 团队 ID | 必填 | 否 |
 
-缺 filename / page_title 时先询问再继续。SQL 与变量表通常来自用户消息或 `nl2sql-metabase` 产出。
+5. **page_style (可选)** — 页面风格（Dashboard 统计看板 / Report 分析报告 / List 明细列表）。
+
+> 💡 **风格询问规则**：若用户未指定 `page_style`，在生成代码前**必须询问用户**，提供风格选项供用户选择后再执行。
+
+---
+
+## 页面风格选项说明
+
+当用户未说明页面风格时，提供以下 3 种风格供用户选择：
+
+### 风格 1：标准统计看板（Dashboard 风格）
+- **适用场景**：日常指标监控、多维筛选交互对比。
+- **布局顺序**：标题与简介 → 横向筛选区 → 右对齐「查询」按钮 → SQL 展开框 → KPI Cards 汇总卡片 → Tabs 切换（图表 / 表格）。
+
+### 风格 2：分析报告文档（Report Document 风格，参考 `category_refund_stats`）
+- **适用场景**：专题汇报、深度分析、带有结论总结的报告。
+- **布局顺序**：
+  1. 📄 报告 Header（含分析专题、`tid/camp_id` 上下文、密级说明）
+  2. 📝 带边框卡片的报告前言与概述（`st.container(border=True)`）
+  3. 📋 带边框卡片包裹的查询参数配置，内含「生成分析报告」主操作按钮
+  4. 一、核心指标概览（带边框卡片包裹 KPI Metrics）
+  5. 二、核心结论与风险洞察（带边框卡片包裹高亮洞察与集中度分析）
+  6. 三、周度/多维对比与明细数据（Tabs 切换：风险/对比图 + 明细表格 + 附录 SQL 展开框）
+  7. 页脚分割线与免责/来源声明
+
+### 风格 3：明细列表工具（List 风格，参考 `student_list`）
+- **适用场景**：学员明细、订单列表、带分页的查询清单。
+- **布局顺序**：标题与简介 → 筛选区 → 右对齐「查询」按钮 → 结果条数摘要 Caption → SQL 展开框 → 结果 Dataframe 表格 → 底部分页栏。
 
 ---
 
@@ -47,179 +74,63 @@ disable-model-invocation: true
 ```
 Progress:
 - [ ] 1. 提取输入并交叉校验参数
-- [ ] 2. 参数分类（session / registry-match / registry-add / fallback）
-- [ ] 3. 处理 registry-add（询问后写入 FILTER_REGISTRY）
-- [ ] 4. 构建 fallbacks
-- [ ] 5. 创建 pages/data/<filename>.py
-- [ ] 6. 注册到 app.py
-- [ ] 7. 输出摘要
+- [ ] 2. 确认页面风格（未说明时询问用户）
+- [ ] 3. 参数分类（session / registry-match / registry-add / fallback）
+- [ ] 4. 处理 registry-add（询问后写入 FILTER_REGISTRY）
+- [ ] 5. 构建 fallbacks
+- [ ] 6. 创建 pages/data/<filename>.py
+- [ ] 7. 注册到 app.py
+- [ ] 8. 输出摘要
 ```
 
 ### Step 1：提取输入
 
 1. 从 SQL 代码块提取模板
-2. 从变量表构建：
+2. 从变量表构建参数字典
+3. 用 `\{\{(\w+)\}\}` 提取 SQL 中全部参数，与变量表交叉校验
 
-```
-{
-  "param_name": {
-    "type": "Number" | "Text" | "Date",
-    "required": true | false,
-    "multi": true | false
-  }
-}
-```
+### Step 2：确认页面风格
 
-3. 用 `\{\{(\w+)\}\}` 提取 SQL 中全部参数，与变量表交叉校验；表中有但 SQL 无的忽略，SQL 有但表无的追问补全
+若用户未明确说明想要的页面风格（Dashboard / Report / List）：
+- 向用户展示 3 种页面风格及其适用场景，等待用户选择后再继续。
 
-### Step 2：参数分类
+### Step 3：参数分类
 
-对照刚读取的 `SESSION_KEYS` / `FILTER_REGISTRY`：
+对照 `SESSION_KEYS` / `FILTER_REGISTRY` 进行分类（session / registry-match / registry-add / fallback）。
 
-| 类别 | 判断 | 处理 |
-|------|------|------|
-| session | 在 `SESSION_KEYS`（`tid`、`camp_id`） | 静默读 session，不渲染 |
-| registry-match | 已在 `FILTER_REGISTRY` | 直接复用 |
-| registry-add | Number + 需要 DB 选项列表 | Step 3 新增 FilterSpec |
-| fallback | Text / Date，或 Number 手输单值 | 页面 `fallbacks` 内联 |
+### Step 4：处理 registry-add
 
-**widget（仅 registry-add）**：`multi=true` → `multiselect`；`multi=false` → `selectbox`
+针对未在 `FILTER_REGISTRY` 中注册的 DB 驱动参数，补充 `FilterSpec`。
 
-**fallback widget**：
-- `Text` / `Date` → `text_input`（Date 的 label 注明格式，如 `YYYY-MM-DD`）
-- `Number` 且非选项列表 → `number_input`
+### Step 5：构建 fallbacks
 
-### Step 3：处理 registry-add
+构建文本/日期等简单的内联 fallback 参数。
 
-对每个待新增参数询问用户：
+### Step 6：创建页面
 
-- **label**、选项 SQL（必须返回 `value`、`label` 两列）
-- **session_params**（选项 SQL 用到的 session 键，如 `["tid"]`）
-- **联动**：是否依赖其他参数？有则要 `depends_on` + `cascade_clause`
+根据选定的页面风格创建 `pages/data/<filename>.py`。
 
-**注册规则：**
+#### 核心数据查询机制（必须遵循）：
+- **仅在点击「查询」/「生成分析报告」按钮时触发数据查询**：
+  ```python
+  _SS_FILTERS = "<filename>_filters"
+  _SS_LABELS = "<filename>_filter_labels"
+  _SS_DF = "<filename>_df"
+  _SS_SQL_PARAMS = "<filename>_sql_params"
+  ```
+- 点击按钮时执行 `df = conn.query(sql, params=sa_params, ttl=0)` 并存入 `st.session_state[_SS_DF]`。
+- 填充数值列的 `None` / `NaN`：
+  ```python
+  for col in num_cols:
+      if col in df.columns:
+          df[col] = df[col].fillna(0).astype(int)
+  ```
+- 再次 rerun / 切换 Tab 时直接复用 `st.session_state[_SS_DF]`，不重复向后端发送请求。
 
-- 同一语义单/多选变体（如 `term_id` / `term_ids`）抽公共 `_XXXX_SQL`，两 FilterSpec 共用
-- 注册顺序 = 渲染顺序：**被依赖项必须在依赖项之前**；有联动的参数写在其 `depends_on` 目标之后
-- 基础选项 SQL **不加** `LIMIT`（由 `_build_options_sql` 处理联动拼接）
+### Step 7：注册 app.py
 
-追加到 `FILTER_REGISTRY`（无则省略可选字段）：
+在 `app.py` 中注册 `st.Page` 并加入 `data_pages` 列表。
 
-```python
-"<param_name>": FilterSpec(
-    label="<label>",
-    widget="<multiselect|selectbox>",
-    sql=<_XXXX_SQL 或字符串>,
-    session_params=["<key>"],
-    depends_on=["<dep>", ...],
-    cascade_clause="AND <col> IN ({values})",
-),
-```
+### Step 8：摘要
 
-### Step 4：构建 fallbacks
-
-```python
-fallbacks = {
-    "name": {"label": "学员昵称", "widget": "text_input"},
-    "account_id": {"label": "账号 ID", "widget": "number_input"},
-    "start_date": {"label": "开始日期 (YYYY-MM-DD)", "widget": "text_input"},
-}
-```
-
-无 fallback 参数则不传 `fallbacks=`。
-
-### Step 5：创建页面
-
-路径：`pages/data/<filename>.py`
-
-```python
-import streamlit as st
-from utils.metabase import extract_params, build_sql, format_display_sql
-from utils.filters import render_filters
-from utils.query import get_conn
-
-TEMPLATE = """
-<原始 Metabase SQL，保留 {{param}} 与 [[ ]]>
-"""
-
-st.title("<page_title>")
-
-if not st.session_state.get("tid") or not st.session_state.get("camp_id"):
-    st.warning("请先登录")
-    st.stop()
-
-conn = get_conn()
-
-filter_values = render_filters(
-    conn,
-    extract_params(TEMPLATE),
-    fallbacks=<dict 或省略该参数>,
-)
-
-if st.button("查询", type="primary"):
-    missing = []
-    # 仅校验 required=true 且非 SESSION_KEYS 的参数；展开为真实 if
-    # selectbox: is None；multiselect/text/number: not value
-    if not filter_values.get("<required_param>"):
-        missing.append("<中文 label>")
-    if missing:
-        st.warning(f"请先选择：{'、'.join(missing)}")
-        st.stop()
-
-    sql, sa_params = build_sql(TEMPLATE, filter_values)
-
-    with st.expander("执行的 SQL", expanded=False):
-        st.code(format_display_sql(sql, sa_params), language="sql")
-
-    with st.spinner("查询中..."):
-        df = conn.query(sql, params=sa_params, ttl=0)
-
-    st.metric("查询结果", f"{len(df)} 条")
-    st.dataframe(df, use_container_width=True)
-```
-
-**校验规则：**
-
-- 只对变量表 `必填` 且不在 `SESSION_KEYS` 的参数生成
-- `selectbox`：`is None`；`multiselect` / fallback：`not value`
-- 收集全部未填 label，一次 `st.warning` + `st.stop()`
-- 无此类必填项则省略整个 `missing` 块
-
-**图表（可选）：** 用户或上游给出图表推荐且适合时，用 tabs：
-
-```python
-tab_chart, tab_table = st.tabs(["图表", "表格"])
-with tab_chart:
-    st.bar_chart(df.set_index("<维列>")["<指标列>"])
-with tab_table:
-    st.dataframe(df, use_container_width=True)
-```
-
-仅表格场景保持单一 `st.dataframe`。
-
-### Step 6：注册 app.py
-
-在 `data_pages = [...]` 之前增加：
-
-```python
-<filename> = st.Page(
-    "pages/data/<filename>.py",
-    title="<page_title>",
-    icon=":material/table_view:",  # 有图表可用 :material/bar_chart: 等
-)
-```
-
-并将变量追加进 `data_pages`。
-
-### Step 7：摘要
-
-报告：页面路径、新增 `FILTER_REGISTRY` 项、fallback 列表、侧边栏标题。
-
----
-
-## 约束
-
-- SQL 模板保持 Metabase 原样，不改写为裸 SQL
-- 不硬编码 `tid` / `camp_id`；页面只校验 session 已登录
-- 未知参数勿静默 invent FilterSpec——归入 registry-add 并询问
-- 改动范围：`pages/data/<filename>.py`、必要时 `utils/filters.py`、`app.py`；勿改无关文件
+报告页面路径、新增 `FILTER_REGISTRY` 项、选定的页面风格与侧边栏标题。

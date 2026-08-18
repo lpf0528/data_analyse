@@ -56,7 +56,17 @@ category_refund_stats = st.Page(
     title="品类退款分析",
     icon=":material/money_off:",
 )
-data_pages = [student_list, class_auth_stats, category_refund_stats]
+class_week_stats = st.Page(
+    "pages/data/class_week_stats.py",
+    title="班级周数据汇总",
+    icon=":material/date_range:",
+)
+data_pages = [
+    student_list,
+    class_auth_stats,
+    category_refund_stats,
+    class_week_stats,
+]
 
 # 首页
 # st.title("Request manager")

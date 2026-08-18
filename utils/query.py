@@ -55,7 +55,7 @@ _SS_CAMP_IDX = "camp_context_idx"
 
 # 本地/调试可选的团队+营期；侧边栏列表，默认第一项
 CAMP_OPTIONS: list[dict[str, int]] = [
-    {"tid": 378, "camp_id": 108108},
+    {"tid": 369, "camp_id": 107808},
 ]
 
 

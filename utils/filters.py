@@ -36,17 +36,17 @@ _TERM_SQL = (
     " WHERE tid = :tid ORDER BY `rank` DESC"
 )
 
-# 班级选项：按 ID 白名单过滤，排除空名称
+# 班级选项：按 camp_id 与状态过滤，排除空名称
 _CLASS_SQL = (
     "SELECT id AS value, class_name AS label"
     " FROM warehouse.dwd_lh_classes"
-    " WHERE id IN (10060654, 10055057, 10060762) AND class_name <> ''"
+    " WHERE camp_id = :camp_id AND state = 'normal' AND class_name <> ''"
 )
 # 自然周选项：按 ID 白名单过滤，排除空名称
 _WEEK_SQL = (
     "SELECT id AS value,"
     "CONCAT(`year`,'年',`month`,'月第',`week`, '周 (', DATE(`start_time`),'~' ,DATE(`end_time`),')') AS label "
-    "FROM warehouse.lh_teaching_weeks_conf "
+    "FROM warehouse.dim_lh_teaching_weeks_conf "
     "WHERE tid = :tid order by end_time desc"
 )
 
@@ -97,11 +97,12 @@ FILTER_REGISTRY: dict[str, FilterSpec] = {
         session_params=["tid"],
         default_first=True,
     ),
-    # 班级 — 多选（联动期次，选了期次后自动缩小班级范围）
+    # 班级 — 多选（联动期次，选了期次后自动缩小班级范围，支持单选 term_id 或多选 term_ids）
     "class_ids": FilterSpec(
         label="班级",
         widget="multiselect",
         sql=_CLASS_SQL,
+        session_params=["camp_id"],
         depends_on=["term_ids", "term_id"],
         cascade_clause="AND camp_term_id IN ({values})",
     ),
@@ -110,6 +111,7 @@ FILTER_REGISTRY: dict[str, FilterSpec] = {
         label="班级",
         widget="selectbox",
         sql=_CLASS_SQL,
+        session_params=["camp_id"],
         depends_on=["term_ids", "term_id"],
         cascade_clause="AND camp_term_id IN ({values})",
     ),
@@ -163,25 +165,30 @@ def _query_filter_options(conn, options_sql: str, query_params: dict, label: str
 
 def _build_options_sql(spec: FilterSpec, current_values: dict) -> str:
     """根据已选的依赖值动态拼接联动 SQL。无依赖或依赖未选时返回原始 SQL。"""
-    if not spec.cascade_clause or not spec.depends_on:
-        return f"{spec.sql}"
+    if not spec.sql:
+        return ""
 
-    # 收集所有依赖参数的已选 ID
-    dep_ids: list[int] = []
-    for dep in spec.depends_on:
-        val = current_values.get(dep)
-        if isinstance(val, list):
-            dep_ids.extend(val)
-        elif isinstance(val, int):
-            dep_ids.append(val)
+    options_sql = spec.sql
+    if spec.cascade_clause and spec.depends_on:
+        # 收集所有依赖参数的已选 ID（兼容单选 term_id 与多选 term_ids）
+        dep_ids: list[int] = []
+        for dep in spec.depends_on:
+            val = current_values.get(dep)
+            if isinstance(val, list):
+                dep_ids.extend([v for v in val if v is not None])
+            elif isinstance(val, int):
+                dep_ids.append(val)
 
-    if not dep_ids:
-        return f"{spec.sql}"
+        if dep_ids:
+            clause = spec.cascade_clause.format(
+                values=", ".join(str(i) for i in dep_ids)
+            )
+            options_sql = f"{options_sql} {clause}"
 
-    # 将依赖 ID 列表注入联动子句
-    clause = spec.cascade_clause.format(
-        values=", ".join(str(i) for i in dep_ids))
-    return f"{spec.sql} {clause}"
+    if "ORDER BY" not in options_sql.upper():
+        options_sql = f"{options_sql} ORDER BY label"
+
+    return options_sql
 
 
 # ---------------------------------------------------------------------------
