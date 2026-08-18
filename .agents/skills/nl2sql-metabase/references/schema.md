@@ -226,6 +226,44 @@ WHERE 1=1
 | ws_num | int | 外诉次数 |
 | high_interact_intention_num | int | 高意向人数 |
 | app_login_num | int | APP登录人数 |
+| bw_learn_time_gt7 | int | 保温录播课学习时长大于70%的人数 |
+| finish_course_gt8 | int | 完成的录播课课程达标率超过80%的人数(达标) |
+| external_complain_num | int | 外诉人数(提出工单人为风控组，学员状态为退费) |
+| high_intention_num | int | 高意向人数(沉浸度和作业提交率都大于等于80%的学员) |
+| access_lecture_num | int | 到课人数(录播课学习时长大于0%) |
+| lecture_num | int | 专栏下每周的课程数(布置了作业) |
+| total_lecture_num | int | 专栏下的累积课程数(布置了作业) |
+| homework_num | int | 作业提交数 |
+| total_homework_num | int | 专栏下的累积作业提交数 |
+| live_lecture_num | int | 周直播课数量 |
+| access_live_lecture_num | int | 周直播到课数 |
+| live_finish_lecture_num | int | 周直播完课数 |
+| watch_live_finish_lecture_num | int | 周观看直播完课数 |
+| no_watch_live_finish_lecture_num | int | 周直播观看未完课数 |
+| playback_finish_lecture_num | int | 周直播回放完课数 |
+| live_finish_total_num | int | 总直播完课数 |
+| avg_reply_time | int | 平均跟进时长(分钟)[除100是实际结果] |
+| raise_order_refund_num | int | 提退人数(通过工单) |
+| teacher_retain_num | int | 讲师挽回人数 |
+| retain_receive_num | int | 挽单承接人数 |
+| retain_retrieve_num | int | 挽单挽回人数 |
+| high_potential_num | int | 高潜力学员数 |
+| buy_course_complain_num7 | int | 购课7天内外诉人数 |
+| course_end_authorize_num | int | 授权人数(课程截止时间前一天截止) |
+| avg_video_finish_num | int | 周平均录播完课人数 |
+| avg_live_finish_num | int | 周平均直播完课人数 |
+| avg_homework_finish_homework_num | int | 周平均作业提交人数 |
+| avg_homework_course_finish_num | int | 周平均作业完课人数 |
+| avg_practice_course_finish_num | int | 周平均训练完课人数 |
+| avg_video_finish_total_num | int | 总平均录播完课人数 |
+| avg_live_finish_total_num | int | 总平均直播完课人数 |
+| avg_homework_finish_total_num | int | 总平均作业提交人数 |
+| avg_homework_course_finish_total_num | int | 总平均作业完课人数 |
+| avg_practice_course_finish_total_num | int | 总平均训练完课人数 |
+| first_operate_task_order_num | int | 首次试音提交人数(包含撤回) |
+| second_operate_task_order_num | int | 第二次试音提交人数(包含撤回) |
+| first_official_task_order_num | int | 首次正式音频提交人数(包含撤回) |
+| second_official_task_order_num | int | 第二次正式音频提交人数(包含撤回) |
 
 **示例 1：查询某个班级在连续多个自然周（start_week_id ~ end_week_id）内各指标的变化趋势**
 
