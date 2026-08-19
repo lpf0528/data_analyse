@@ -46,6 +46,11 @@ student_list = st.Page(
     title="学员列表",
     icon=":material/person_search:",
 )
+student_message_list = st.Page(
+    "pages/data/student_message_list.py",
+    title="学员消息明细",
+    icon=":material/chat:",
+)
 class_auth_stats = st.Page(
     "pages/data/class_auth_stats.py",
     title="班级授权学员数",
@@ -63,6 +68,7 @@ class_week_stats = st.Page(
 )
 data_pages = [
     student_list,
+    student_message_list,
     class_auth_stats,
     category_refund_stats,
     class_week_stats,

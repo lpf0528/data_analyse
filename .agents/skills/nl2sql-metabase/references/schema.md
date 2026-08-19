@@ -511,3 +511,73 @@ WHERE `aao`.`pay_status` = 2
 GROUP BY `aao`.`class_id`, `aao`.`class_name`
 ORDER BY `total_pay_fee` DESC
 ```
+
+---
+
+## 消息跟进表
+
+### ods_lh_efficiency_platform_term_student_chat_message_all（营期学员消息跟进表）
+
+- **alias**: `m`
+- **use_for**: 记录营期学员与机器人/客服的聊天消息跟进明细（全部消息类型），包含消息类型、发送状态、回复时长（等待时长）、回复场景（私聊/客服/AI自动/关键词）及消息标签等。适合回答：
+  1. 营期学员消息跟进率、跟进响应时长及逾期未回复（`wait_interval >= 7200`）统计
+  2. 消息类型（文字、图片、语音、视频、图文链接、小程序、视频号等）与回复场景分布
+  3. 学员与机器人的互动跟进明细及消息标签分析
+- **required_filters**:
+  ```sql
+  AND `m`.`term_id` IN ({{term_ids}})
+  ```
+- **optional_filters**（可选，加 `[[]]`）:
+  ```sql
+  [[ AND `m`.`account_id` IN ({{account_ids}}) ]]
+  [[ AND `m`.`msg_time` BETWEEN {{start_time}} AND {{end_time}} ]]
+  [[ AND `m`.`state` = {{state}} ]]
+  [[ AND `m`.`reply_msg_scene` = {{reply_msg_scene}} ]]
+  ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | 自增，消息id（PK） |
+| term_id | int | 营期id（外键） → dim_lh_teaching_class_term.id |
+| account_id | int | 荔课ID（学员ID） |
+| external_users_id | int | 学员在群控系统中的ID |
+| robot_id | int | 机器人id |
+| msg_time | datetime | 消息时间 |
+| msg_content | text | 聊天消息内容 |
+| msg_type | int | 消息类型：10000='系统消息', 2001='文字', 2002='图片', 2003='语音', 2004='视频', 2005='图文链接', 2006='好友名片', 2010='文件', 2013='小程序', 2017='视频号消息', 2021='位置消息', 2018='转发消息' |
+| label | varchar | 消息标签 |
+| manual_label | varchar | 人工标记的标签 |
+| state | varchar | 发送状态：sending, success=发送成功, fail, recall=撤回 |
+| create_time | datetime | 创建时间 |
+| update_time | datetime | 更新时间 |
+| reply_msg_id | bigint | 回复消息id |
+| reply_time | datetime | 回复时间 |
+| wait_interval | int | 等待时长（单位：秒），等于7200s（120分钟）为逾期未回复 |
+| reply_content | text | 回复内容 |
+| reply_msg_type | int | 回复消息类型（枚举同 msg_type） |
+| reply_msg_scene | varchar | 回复消息场景："chat 聊天", "web 客服工作台发送", "ai_auto AI消息发送", "keyword 关键词回复" |
+| reply_title | varchar | 文件/链接/视频号消息标题 |
+| reply_href | varchar | 链接/视频号消息URL |
+| process_time | datetime | 消息处理时间 |
+
+**示例 1：查询某营期学员消息跟进明细与等待时长**
+```sql
+SELECT
+  `m`.`id`               AS `msg_id`,
+  `m`.`term_id`,
+  `m`.`account_id`,
+  `m`.`msg_time`,
+  `m`.`msg_content`,
+  `m`.`msg_type`,
+  `m`.`state`,
+  `m`.`reply_time`,
+  `m`.`wait_interval`,
+  `m`.`reply_msg_scene`
+FROM `warehouse`.`ods_lh_efficiency_platform_term_student_chat_message_all` `m`
+WHERE 1=1
+  AND `m`.`term_id` IN ({{term_ids}})
+  [[ AND `m`.`account_id` IN ({{account_ids}}) ]]
+  [[ AND `m`.`msg_time` BETWEEN {{start_time}} AND {{end_time}} ]]
+ORDER BY `m`.`msg_time` DESC
+```
+

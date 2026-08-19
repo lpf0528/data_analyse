@@ -318,6 +318,30 @@ def render_filters(
                 labels[param] = (
                     str(values[param]) if values[param] is not None else None
                 )
+            elif widget == "selectbox":
+                options = fb.get("options", [])
+                placeholder = fb.get("placeholder", "全部")
+                if isinstance(options, dict):
+                    opt_labels = list(options.keys())
+                    chosen = st.selectbox(
+                        label,
+                        options=opt_labels,
+                        index=None,
+                        placeholder=placeholder,
+                        width=_WIDGET_WIDTH,
+                    )
+                    values[param] = options[chosen] if chosen is not None else None
+                    labels[param] = chosen
+                else:
+                    chosen = st.selectbox(
+                        label,
+                        options=options,
+                        index=None,
+                        placeholder=placeholder,
+                        width=_WIDGET_WIDTH,
+                    )
+                    values[param] = chosen if chosen is not None else None
+                    labels[param] = chosen
             else:
                 text = st.text_input(
                     label,

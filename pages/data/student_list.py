@@ -9,7 +9,6 @@ import math
 import streamlit as st
 from utils.metabase import extract_params, build_sql, format_display_sql
 from utils.filters import render_filters
-from utils.page_copy import fill_template, join_labels
 from utils.query import get_conn
 
 # COUNT / DATA 共用 FROM+WHERE，保证总数与列表筛选条件一致
@@ -44,10 +43,6 @@ LIMIT {{limit}} OFFSET {{offset}}
 _INTRO = (
     "按期次 / 班级 / 昵称筛选学员明细。"
     "主要字段：班级、账号、微信昵称、学员状态、授权状态、添加状态。"
-)
-_SUMMARY_TPL = (
-    "当前筛选：期次 {term_scope}；班级 {class_scope}；"
-    "昵称关键词「{name_scope}」。共 {total} 人。"
 )
 
 PAGE_SIZE_OPTIONS = [5, 10, 15, 20]
@@ -108,9 +103,7 @@ if _SS_FILTERS in st.session_state:
         st.session_state[_SS_SIZE_PREV] = page_size
 
     count_sql, count_params = build_sql(COUNT_TEMPLATE, saved_filters)
-    # COUNT 也先展示 SQL，失败时不至于整页白屏无语句
-    with st.expander("执行的 SQL（COUNT）", expanded=False):
-        st.code(format_display_sql(count_sql, count_params), language="sql")
+    # COUNT 仅用于计算分页总数，不在页面展示其 SQL。
     try:
         with st.spinner("查询中..."):
             total = int(
@@ -120,21 +113,11 @@ if _SS_FILTERS in st.session_state:
         st.error(f"COUNT 查询失败：{exc}")
         st.stop()
 
-    name_raw = (saved_filters.get("name") or "").strip()
-    st.caption(
-        fill_template(
-            _SUMMARY_TPL,
-            term_scope=join_labels(saved_labels.get("term_ids")),
-            class_scope=join_labels(saved_labels.get("class_ids"), empty="全部"),
-            name_scope=name_raw if name_raw else "（未限）",
-            total=total,
-        )
-    )
-
     total_pages = max(1, math.ceil(total / page_size) if total else 1)
     # 总数变少时避免当前页超出范围（键不存在时视为第 1 页，与 pagination default 一致）
     if st.session_state.get(_SS_PAGE, 1) > total_pages:
-        st.session_state[_SS_PAGE] = total_pages
+        if _SS_PAGE in st.session_state:
+            st.session_state[_SS_PAGE] = total_pages
 
     # 官方 empty + pagination：先占位 SQL/表格，再画底栏拿 page，最后回填
     # （分页在视觉上在表格下方，但 page 值必须先于数据查询拿到）

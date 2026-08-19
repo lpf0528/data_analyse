@@ -208,7 +208,7 @@ with tab_table:
 
 ### 列表分页页布局惯例（参考 `pages/data/student_list.py`）
 
-适用于需要 SQL 分页的列表页：筛选 → 查询 → 摘要 caption → 结果区（SQL / 表格 / 底部分页栏）。
+适用于需要 SQL 分页的列表页：筛选 → 查询 → 结果区（SQL / 表格 / 底部分页栏）。
 
 **查询与首次自动加载**
 - 筛选下方单独一行，`st.container(horizontal_alignment="right")` 右对齐
@@ -216,10 +216,9 @@ with tab_table:
 - 首次进入：若 `_SS_FILTERS` 不存在，写入当前 `filter_values` / `filter_labels`，随即走结果区逻辑
 
 **结果区占位顺序（官方 empty + pagination）**
-1. COUNT 后先渲染摘要 caption（当前筛选 + 总人数）
-2. 再声明 `sql_slot = st.empty()`、`dataframe_slot = st.empty()`
-3. 再渲染底部分页栏（需要先拿到 `page` 才能算 `OFFSET`）
-4. 最后用占位符填入 SQL expander 与 `dataframe`
+1. 声明 `sql_slot = st.empty()`、`dataframe_slot = st.empty()`
+2. 再渲染底部分页栏（需要先拿到 `page` 才能算 `OFFSET`）
+3. 最后用占位符填入 SQL expander 与 `dataframe`
 
 **底部分页栏（三列 `[2, 3, 2]`，`vertical_alignment="center"`）**
 
