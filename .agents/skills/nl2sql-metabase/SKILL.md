@@ -22,16 +22,39 @@ description: >
 
 ---
 
-## 第一步：读取 Schema
+## 第一步：动态检索 Schema 元数据（工具调用）
 
-**生成任何 SQL 前，必须实际读取** `references/schema.md`（涉及最新周人数基数或率值计算时一并查阅 `references/queries.md`），按其中每张表的元数据生成（不依赖记忆）：
+**生成任何 SQL 前，禁止盲目依赖记忆或全量读取大文件，必须使用 CLI 工具动态检索相关的表结构与模板**：
+
+### 动态元数据工具 (`scripts/query_meta.py`)
+
+运行以下命令行工具检索准确的表结构、别名、强制条件 `required_filters`、可选条件 `optional_filters` 与字段字典：
+
+1. **关键词搜索表结构**（推荐首选）：
+   ```bash
+   uv run python scripts/query_meta.py --search "<问题关键词，如: 学员 授权 班级>"
+   ```
+2. **精准查询指定表**：
+   ```bash
+   uv run python scripts/query_meta.py --table "<表名，如: dws_lh_teaching_term_class_week>"
+   ```
+3. **检索复杂特定 SQL 模板**（如最新周基数、率值计算等）：
+   ```bash
+   uv run python scripts/query_meta.py --template "<关键词，如: 最新周>"
+   ```
+4. **查看全量数据表目录概览**：
+   ```bash
+   uv run python scripts/query_meta.py --list
+   ```
+
+### 元数据约束协议
 
 | 字段 | 含义 |
 |------|------|
 | `alias` | SQL 别名；WHERE / JOIN ON 必须用别名 |
 | `use_for` | 业务场景；多表可选时据此选型 |
 | `required_filters` | **必须**注入 WHERE，且不加 `[[]]`；CTE 型则为固定 `WITH` 块 |
-| `optional_filters` | 可选条件，加 `[[]]`；未列出时可按业务自行添加 |
+| `optional_filters` | 可选条件，加 `[[]]`；未列出时按业务需要自行添加 |
 
 Metabase 模板中表名保留 `` `warehouse`.`表名` `` 前缀。
 
@@ -137,7 +160,7 @@ WHERE 1=1
 
 输出 SQL 前逐项确认：
 
-1. ✅ 已读取 `schema.md`（`required_filters`、`use_for`）
+1. ✅ 已使用 `query_meta.py --search` 检索到匹配表的 Schema 元数据（`required_filters`、`use_for`）
 2. ✅ `WHERE 1=1`；有 `tid`/`camp_id` 的表已强制注入（无 `[[]]`）
 3. ✅ 各表 `required_filters` 已全部注入（无 `[[]]`）；可选筛选均在 `[[]]` 内
 4. ✅ 无业务 ID 硬编码
@@ -151,11 +174,13 @@ WHERE 1=1
 
 所有表元数据、字段字典与 SQL 模板持久化存储于 **SQLite 数据库** (`data/nl2sql_meta.db`)，建表定义维护在 `scripts/schema_sqlite.sql`。
 
-- `references/schema.md` — 从 SQLite 导出的表结构与元数据、典型 SQL 示例（**每次必须查阅**）
-- `references/queries.md` — 从 SQLite 导出的特定/常用查询模板（如最新周基数查询、率值计算等）
+- `scripts/query_meta.py` — **动态检索工具 (首选)**：`uv run python scripts/query_meta.py --search "<关键词>"`
+- `references/schema.md` — 从 SQLite 自动同步导出的表结构与元数据（静态兜底）
+- `references/queries.md` — 从 SQLite 自动同步导出的特定/常用查询模板（静态兜底）
 
 ### 管理与同步工具命令
 
+- **动态检索工具**: `uv run python scripts/query_meta.py --search "<关键词>"`
 - **建表 DDL**: `scripts/schema_sqlite.sql` (数据库结构变更时同步维护此 SQL)
 - **修改配置**: Streamlit 页面「系统配置」 -> 「NL2SQL配置管理」
 - **SQLite -> Markdown 同步导出**: `uv run python scripts/export_sqlite_to_md.py`
