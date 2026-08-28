@@ -1,6 +1,7 @@
 """
 nl2sql_meta.py — SQLite 配置元数据访问与维护工具模块
 专门管理 NL2SQL 规则所使用的本地 SQLite 配置数据库 (data/nl2sql_meta.db)。
+对 SQLite 的任何变更（新增、修改、删除）均会自动同步刷新 references/ 下的 Markdown 文件。
 """
 
 from pathlib import Path
@@ -23,6 +24,15 @@ def get_db_conn(db_path: Optional[Path] = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
+
+def _auto_sync_md():
+    """在保存/修改 SQLite 配置后自动触发同步导出到 references/*.md 参考文件"""
+    try:
+        from scripts.export_sqlite_to_md import export_to_md
+        export_to_md()
+    except Exception as e:
+        print(f"[WARN] Auto sync markdown failed: {e}")
 
 
 # ------------------------------------------------------------------------------
@@ -91,7 +101,7 @@ def get_table_detail(table_id_or_name: Any) -> Optional[Dict[str, Any]]:
 
 
 def save_table_meta(table_data: Dict[str, Any]) -> int:
-    """新增或更新表级元数据"""
+    """新增或更新表级元数据，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         table_id = table_data.get("id")
@@ -120,7 +130,7 @@ def save_table_meta(table_data: Dict[str, Any]) -> int:
                 table_data.get("status", 1),
                 table_id,
             ))
-            return table_id
+            res_id = table_id
         else:
             cursor.execute("""
                 INSERT INTO nl2sql_table_meta (db_name, table_name, table_alias, domain, use_for, required_filters, optional_filters, status)
@@ -136,15 +146,19 @@ def save_table_meta(table_data: Dict[str, Any]) -> int:
                 table_data.get("status", 1),
             ))
             conn.commit()
-            return cursor.lastrowid
+            res_id = cursor.lastrowid
+
+    _auto_sync_md()
+    return res_id
 
 
 def delete_table_meta(table_id: int):
-    """删除指定表元数据（级联删除字段与示例）"""
+    """删除指定表元数据（级联删除字段与示例），并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM nl2sql_table_meta WHERE id = ?;", (table_id,))
         conn.commit()
+    _auto_sync_md()
 
 
 # ------------------------------------------------------------------------------
@@ -152,7 +166,7 @@ def delete_table_meta(table_id: int):
 # ------------------------------------------------------------------------------
 
 def save_column_meta(col_data: Dict[str, Any]) -> int:
-    """新增或更新单个字段属性"""
+    """新增或更新单个字段属性，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         col_id = col_data.get("id")
@@ -181,7 +195,7 @@ def save_column_meta(col_data: Dict[str, Any]) -> int:
                 col_data.get("sort_order", 0),
                 col_id,
             ))
-            return col_id
+            res_id = col_id
         else:
             cursor.execute("""
                 INSERT INTO nl2sql_column_meta (table_id, column_name, data_type, column_comment, ref_table_name, ref_column_name, is_pk, is_fk, sort_order)
@@ -198,15 +212,19 @@ def save_column_meta(col_data: Dict[str, Any]) -> int:
                 col_data.get("sort_order", 0),
             ))
             conn.commit()
-            return cursor.lastrowid
+            res_id = cursor.lastrowid
+
+    _auto_sync_md()
+    return res_id
 
 
 def delete_column_meta(col_id: int):
-    """删除字段"""
+    """删除字段，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM nl2sql_column_meta WHERE id = ?;", (col_id,))
         conn.commit()
+    _auto_sync_md()
 
 
 # ------------------------------------------------------------------------------
@@ -214,7 +232,7 @@ def delete_column_meta(col_id: int):
 # ------------------------------------------------------------------------------
 
 def save_table_example(ex_data: Dict[str, Any]) -> int:
-    """保存表 SQL 示例"""
+    """保存表 SQL 示例，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         ex_id = ex_data.get("id")
@@ -235,7 +253,7 @@ def save_table_example(ex_data: Dict[str, Any]) -> int:
                 ex_data.get("sort_order", 0),
                 ex_id,
             ))
-            return ex_id
+            res_id = ex_id
         else:
             cursor.execute("""
                 INSERT INTO nl2sql_table_example (table_id, example_name, sql_content, description, sort_order)
@@ -248,15 +266,19 @@ def save_table_example(ex_data: Dict[str, Any]) -> int:
                 ex_data.get("sort_order", 0),
             ))
             conn.commit()
-            return cursor.lastrowid
+            res_id = cursor.lastrowid
+
+    _auto_sync_md()
+    return res_id
 
 
 def delete_table_example(ex_id: int):
-    """删除 SQL 示例"""
+    """删除 SQL 示例，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM nl2sql_table_example WHERE id = ?;", (ex_id,))
         conn.commit()
+    _auto_sync_md()
 
 
 # ------------------------------------------------------------------------------
@@ -272,7 +294,7 @@ def get_all_query_templates() -> List[Dict[str, Any]]:
 
 
 def save_query_template(tpl_data: Dict[str, Any]) -> int:
-    """新增或更新查询模板"""
+    """新增或更新查询模板，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         tpl_id = tpl_data.get("id")
@@ -299,7 +321,7 @@ def save_query_template(tpl_data: Dict[str, Any]) -> int:
                 tpl_data.get("status", 1),
                 tpl_id,
             ))
-            return tpl_id
+            res_id = tpl_id
         else:
             cursor.execute("""
                 INSERT INTO nl2sql_query_template (title, category, scenario, related_tables, sql_template, notes, status)
@@ -314,12 +336,16 @@ def save_query_template(tpl_data: Dict[str, Any]) -> int:
                 tpl_data.get("status", 1),
             ))
             conn.commit()
-            return cursor.lastrowid
+            res_id = cursor.lastrowid
+
+    _auto_sync_md()
+    return res_id
 
 
 def delete_query_template(tpl_id: int):
-    """删除查询模板"""
+    """删除查询模板，并自动同步导出 Markdown"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM nl2sql_query_template WHERE id = ?;", (tpl_id,))
         conn.commit()
+    _auto_sync_md()
