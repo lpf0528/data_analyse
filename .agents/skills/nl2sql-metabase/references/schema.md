@@ -185,6 +185,84 @@ WHERE 1=1
 
 ## 汇总统计表
 
+### dws_lh_teaching_repurchase_category_class_day（班级天指标统计表）
+
+- **alias**: `rcd`
+- **use_for**: 记录**班级**每天学员数据指标定格的汇总快照
+
+
+- **required_filters**:
+```sql
+AND `rcd`.`term_id` IN ({{term_ids}})
+```
+
+- **optional_filters**（可选，加 `[[]]`）:
+```sql
+[[ AND `rcd`.`class_id` IN ({{class_ids}}) ]]
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| category_id | int | 品类id |
+| class_id | int | 班级id（外键） → dwd_lh_classes.id |
+| dt | date | 日期 |
+| term_id | int | 营期id（外键） → dim_lh_teaching_class_term.id |
+| pay_num | int | 当日尾款+定金支付人数 |
+| pay_num_have_refund | int | 当日尾款+定金支付人数（含退费） |
+| deposit_pay_live_num | int | 直播间定金支付人数 |
+| deposit_pay_live_num_have_refund | int | 直播间定金支付人数(含退费) |
+| deposit_pay_no_live_num | int | 个销定金支付人数 |
+| deposit_pay_no_live_num_have_refund | int | 个销定金支付人数(含退费) |
+| pay_live_num | int | 直播间尾款+定金支付人数 |
+| pay_live_num_have_refund | int | 直播间尾款+定金支付人数(含退费) |
+| pay_no_live_num | int | 个销尾款+定金支付人数 |
+| pay_no_live_num_have_refund | int | 个销尾款+定金支付人数(含退费) |
+| tail_pay_live_num | int | 直播间尾款支付人数 |
+| tail_pay_live_num_have_refund | int | 直播间尾款支付人数(含退费) |
+| tail_pay_not_live_num | int | 个销尾款支付人数 |
+| tail_pay_not_live_num_have_refund | int | 个销尾款支付人数(含退费) |
+| tail_pay_intraday_num | int | 当日尾款支付人数 |
+| tail_pay_intraday_num_have_refund | int | 当日尾款支付人数(含退费) |
+| deposit_pay_num | int | 定金支付人数 |
+| deposit_pay_num_have_refund | int | 定金支付人数(含退费) |
+| deposit_tail_pay_num | int | 天定金追回人数 |
+| deposit_tail_pay_num_have_refund | int | 天定金追回人数(含退费) |
+| deposit_complete_pay_total_num | int | 累计定金结清人数 |
+| deposit_complete_pay_total_num_have_refund | int | 累计定金结清人数(含退费) |
+| deposit_pay_total_num | int | 累计定金人数 |
+| deposit_pay_total_num_have_refund | int | 累计定金人数(含退费) |
+| pay_intraday_amount | int | 当天支付产生流水 |
+| pay_intraday_amount_have_refund | int | 当天支付流水(含退费) |
+| pay_intraday_amount_guaranteed | int | 打底流水 |
+| pay_intraday_amount_g_have_refund | int | 打底流水(含退费) |
+| pay_intraday_live_amount | int | 当天直播间流水 |
+| pay_intraday_live_amount_have_refund | int | 当天直播间流水(含退费) |
+| pay_intraday_not_live_amount | int | 当天非直播间/私聊流水 |
+| pay_intraday_not_live_amount_have_refund | int | 当天非直播间/私聊流水(含退费) |
+| watch_live_num | int | 到播人数 |
+| valid_watch_live_num | int | 有效到播人数 |
+| valid_watch_live_num_realtime | int | 有效到播人数(实时) |
+| real_discuss_cnt | int | 真实用户发言数（发言数） |
+| lecturer_reply_cnt | int | 讲师回复数 |
+| barrage_cnt | int | 学员评论数 |
+| no_pay_live_num | int | 直播间待支付人数 |
+| follow_live_num | int | 直播间跟读人数(day1为空) |
+| lecture_id | int | 当天选取的直播课 |
+| create_order_ot_num | int | 当天超时待支付人数 |
+| create_order_ot_pay_num | int | 当天超时待支付购买人数 |
+| no_pay_special_num | int | 未购买人数 |
+| no_pay_valid_watch_live_num | int | 授权未购买有效到播人数 |
+| no_pay_authorize_num | int | 授权未购买人数 |
+| full_pay_amount | int | 全款流水 |
+| full_pay_amount_have_refund | int | 全款流水(含退费) |
+| high_potential_pay_num | int | 高潜力用户支付人数 |
+| high_potential_pay_num_have_refund | int | 高潜力用户支付人数(含退费) |
+| max_concurrent_users | int | 最高同时在线人数 |
+| watch_duration_attended | int | 到播学员的观看总时长 |
+| avg_watch_duration_attended | int | 到播学员的平均观看时长 |
+
+
+
 ### dws_lh_teaching_term_class_week（定格某个自然周下班级学员指标汇总表）
 
 - **alias**: `cw`
@@ -580,4 +658,9 @@ WHERE 1=1
   [[ AND `m`.`msg_time` BETWEEN {{start_time}} AND {{end_time}} ]]
 ORDER BY `m`.`msg_time` DESC
 ```
+
+
+
+
+
 

@@ -24,7 +24,7 @@ description: >
 
 ## 第一步：读取 Schema
 
-**生成任何 SQL 前，必须实际读取** `references/schema.md`，按其中每张表的元数据生成（不依赖记忆）：
+**生成任何 SQL 前，必须实际读取** `references/schema.md`（涉及最新周人数基数或率值计算时一并查阅 `references/queries.md`），按其中每张表的元数据生成（不依赖记忆）：
 
 | 字段 | 含义 |
 |------|------|
@@ -152,3 +152,4 @@ WHERE 1=1
 ## 参考文件
 
 - `references/schema.md` — 表结构与元数据、典型 SQL 示例（**每次必须查阅**）
+- `references/queries.md` — 特定/常用查询模板（如最新周基数查询、率值计算等）
