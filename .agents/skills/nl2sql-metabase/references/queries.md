@@ -12,7 +12,7 @@
 ### 数据源
 `warehouse.dws_lh_teaching_term_class_week` (`cw`)
 
-### SQL 模板 (CTE 形式)
+### SQL 模板
 
 ```sql
 -- CTE: 获取每个营期、班级的最新周基数数据
@@ -112,6 +112,8 @@ ORDER BY
 ```
 
 ---
+
+## 3. 率值计算规范与防错约定
 
 ## 3. 率值计算规范与防错约定
 

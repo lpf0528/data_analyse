@@ -147,9 +147,16 @@ WHERE 1=1
 8. ✅ 使用 `authorize_account_order` 时，已完整粘贴 CTE 块
 9. ✅ 已给出图表推荐；变量表仅含本次实际变量
 
----
+## 参考文件与数据库配置
 
-## 参考文件
+所有表元数据、字段字典与 SQL 模板持久化存储于 **SQLite 数据库** (`data/nl2sql_meta.db`)，建表定义维护在 `scripts/schema_sqlite.sql`。
 
-- `references/schema.md` — 表结构与元数据、典型 SQL 示例（**每次必须查阅**）
-- `references/queries.md` — 特定/常用查询模板（如最新周基数查询、率值计算等）
+- `references/schema.md` — 从 SQLite 导出的表结构与元数据、典型 SQL 示例（**每次必须查阅**）
+- `references/queries.md` — 从 SQLite 导出的特定/常用查询模板（如最新周基数查询、率值计算等）
+
+### 管理与同步工具命令
+
+- **建表 DDL**: `scripts/schema_sqlite.sql` (数据库结构变更时同步维护此 SQL)
+- **修改配置**: Streamlit 页面「系统配置」 -> 「NL2SQL配置管理」
+- **SQLite -> Markdown 同步导出**: `uv run python scripts/export_sqlite_to_md.py`
+- **Markdown -> SQLite 初始化迁移**: `uv run python scripts/migrate_md_to_sqlite.py`

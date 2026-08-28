@@ -74,6 +74,12 @@ data_pages = [
     class_week_stats,
 ]
 
+nl2sql_config_page = st.Page(
+    "pages/settings/nl2sql_config_mgmt.py",
+    title="NL2SQL配置管理",
+    icon=":material/settings_suggest:",
+)
+
 # 首页
 # st.title("Request manager")
 st.logo("images/horizontal_blue.png", icon_image="images/icon_blue.png")
@@ -82,6 +88,7 @@ page_dict = {}
 
 if st.session_state.role == "Admin":
     page_dict["数据汇总"] = data_pages
+    page_dict["系统配置"] = [nl2sql_config_page]
 
 if len(page_dict) > 0:
     pg = st.navigation(page_dict | {"Account": account_pages})
