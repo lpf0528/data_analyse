@@ -4,6 +4,7 @@ NL2SQL 配置元数据管理页面 (SQLite 本地存储)
 """
 
 from pathlib import Path
+import pandas as pd
 import streamlit as st
 
 from utils.nl2sql_meta import (
@@ -46,13 +47,56 @@ tab_tables, tab_templates, tab_ddl = st.tabs(["数据表与字段字典", "常�
 # ==============================================================================
 with tab_tables:
     table_metas = get_all_table_metas()
+
+    # 1.1 列表形式展示所有已配置的数据表概览
+    st.subheader(f"📋 已配置数据表列表 (共 {len(table_metas)} 张)")
+
+    overview_rows = []
+    for idx, t in enumerate(table_metas, start=1):
+        detail = get_table_detail(t["id"])
+        col_count = len(detail.get("columns", [])) if detail else 0
+        ex_count = len(detail.get("examples", [])) if detail else 0
+        overview_rows.append({
+            "序号": idx,
+            "表名": t["table_name"],
+            "别名": t["table_alias"],
+            "所属板块": t["domain"],
+            "字段数": col_count,
+            "示例数": ex_count,
+            "必填条件": t["required_filters"].replace("\n", " ") if t["required_filters"] else "无",
+            "业务场景说明": t["use_for"].replace("\n", " ")[:60] + ("..." if len(t["use_for"]) > 60 else ""),
+        })
+
+    if overview_rows:
+        overview_df = pd.DataFrame(overview_rows)
+        st.dataframe(
+            overview_df,
+            column_config={
+                "序号": st.column_config.NumberColumn(width="small"),
+                "表名": st.column_config.TextColumn(width="medium"),
+                "别名": st.column_config.TextColumn(width="small"),
+                "所属板块": st.column_config.TextColumn(width="medium"),
+                "字段数": st.column_config.NumberColumn(width="small"),
+                "示例数": st.column_config.NumberColumn(width="small"),
+                "必填条件": st.column_config.TextColumn(width="large"),
+                "业务场景说明": st.column_config.TextColumn(width="large"),
+            },
+            hide_index=True,
+        )
+    else:
+        st.info("暂未配置任何数据表。")
+
+    st.markdown("---")
+
+    # 1.2 数据表表单编辑与详情查看
+    st.subheader("🛠️ 查看 / 修改表详情与字段字典")
     table_options = ["(新增数据表...)"] + [f"{t['table_name']} ({t['table_alias']}) - {t['domain']}" for t in table_metas]
     table_map = {f"{t['table_name']} ({t['table_alias']}) - {t['domain']}": t for t in table_metas}
 
-    selected_option = st.selectbox("选择要查看/修改的数据表", table_options, key="select_tbl_meta")
+    selected_option = st.selectbox("选择要编辑的数据表", table_options, key="select_tbl_meta")
 
     if selected_option == "(新增数据表...)":
-        st.subheader("新增数据表元数据")
+        st.markdown("#### 新增数据表")
         with st.form("form_add_table"):
             col_a1, col_a2, col_a3 = st.columns(3)
             with col_a1:
@@ -89,7 +133,7 @@ with tab_tables:
         table_detail = get_table_detail(current_tbl_info["id"])
 
         if table_detail:
-            st.markdown(f"### 表: `{table_detail['table_name']}` (别名: `{table_detail['table_alias']}`)")
+            st.markdown(f"#### 表: `{table_detail['table_name']}` (别名: `{table_detail['table_alias']}` | 板块: `{table_detail['domain']}`)")
 
             # 基本信息编辑表单
             with st.expander("编辑表基本元信息", expanded=False):
@@ -131,8 +175,8 @@ with tab_tables:
                         st.rerun()
 
             # 字段字典展现与维护
-            st.markdown("#### 字段字典列表")
             cols_data = table_detail.get("columns", [])
+            st.markdown(f"##### 字段字典列表 (共 {len(cols_data)} 个字段)")
 
             if cols_data:
                 edited_df = st.data_editor(
@@ -188,7 +232,7 @@ with tab_tables:
                             st.rerun()
 
             # 典型示例 SQL
-            st.markdown("#### 典型 SQL 示例")
+            st.markdown("##### 典型 SQL 示例")
             for ex in table_detail.get("examples", []):
                 with st.expander(f"📌 {ex['example_name']}", expanded=False):
                     st.code(ex["sql_content"], language="sql")
@@ -216,13 +260,48 @@ with tab_tables:
 # TAB 2: 常用查询模板管理
 # ==============================================================================
 with tab_templates:
-    st.subheader("特定/常用查询模板管理 (queries.md)")
     templates = get_all_query_templates()
+
+    # 2.1 列表形式展示所有已配置的常用查询模板概览
+    st.subheader(f"📋 已配置常用查询模板列表 (共 {len(templates)} 个)")
+
+    tpl_overview_rows = []
+    for idx, tpl in enumerate(templates, start=1):
+        tpl_overview_rows.append({
+            "序号": idx,
+            "模板标题": tpl["title"],
+            "分类": tpl["category"],
+            "涉及数据源表": tpl["related_tables"] if tpl["related_tables"] else "未限定",
+            "包含防错约定": "有" if tpl["notes"] else "无",
+            "业务场景说明": tpl["scenario"].replace("\n", " ")[:80] + ("..." if len(tpl["scenario"]) > 80 else ""),
+        })
+
+    if tpl_overview_rows:
+        tpl_df = pd.DataFrame(tpl_overview_rows)
+        st.dataframe(
+            tpl_df,
+            column_config={
+                "序号": st.column_config.NumberColumn(width="small"),
+                "模板标题": st.column_config.TextColumn(width="medium"),
+                "分类": st.column_config.TextColumn(width="medium"),
+                "涉及数据源表": st.column_config.TextColumn(width="medium"),
+                "包含防错约定": st.column_config.TextColumn(width="small"),
+                "业务场景说明": st.column_config.TextColumn(width="large"),
+            },
+            hide_index=True,
+        )
+    else:
+        st.info("暂未配置任何常用查询模板。")
+
+    st.markdown("---")
+
+    # 2.2 常用查询模板表单编辑与详情查看
+    st.subheader("🛠️ 查看 / 修改查询模板详情")
 
     tpl_options = ["(新增查询模板...)"] + [f"{t['title']} ({t['category']})" for t in templates]
     tpl_map = {f"{t['title']} ({t['category']})": t for t in templates}
 
-    selected_tpl_opt = st.selectbox("选择要修改的查询模板", tpl_options, key="select_tpl_meta")
+    selected_tpl_opt = st.selectbox("选择要编辑的查询模板", tpl_options, key="select_tpl_meta")
 
     if selected_tpl_opt == "(新增查询模板...)":
         st.markdown("#### 新增查询模板")
@@ -258,7 +337,7 @@ with tab_templates:
 
     else:
         tpl_info = tpl_map[selected_tpl_opt]
-        st.markdown(f"### 模板: `{tpl_info['title']}`")
+        st.markdown(f"#### 模板: `{tpl_info['title']}` ({tpl_info['category']})")
 
         with st.form(f"form_edit_tpl_{tpl_info['id']}"):
             et1, et2 = st.columns(2)
