@@ -80,6 +80,12 @@ nl2sql_config_page = st.Page(
     icon=":material/settings_suggest:",
 )
 
+sql_render_page = st.Page(
+    "pages/settings/sql_render.py",
+    title="SQL渲染与校验",
+    icon=":material/terminal:",
+)
+
 # 首页
 # st.title("Request manager")
 st.logo("images/horizontal_blue.png", icon_image="images/icon_blue.png")
@@ -88,7 +94,7 @@ page_dict = {}
 
 if st.session_state.role == "Admin":
     page_dict["数据汇总"] = data_pages
-    page_dict["系统配置"] = [nl2sql_config_page]
+    page_dict["系统配置"] = [nl2sql_config_page, sql_render_page]
 
 if len(page_dict) > 0:
     pg = st.navigation(page_dict | {"Account": account_pages})

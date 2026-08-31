@@ -61,3 +61,96 @@ def format_display_sql(sql: str, sa_params: dict) -> str:
     for key in sorted(sa_params, key=len, reverse=True):
         display = display.replace(f":{key}", repr(sa_params[key]))
     return display
+
+
+def render_sql(sql: str, params: dict) -> tuple[str, list[str]]:
+    """
+    根据 params 字典/OrderedDict 渲染带 %(param)s 占位符的 SQL 模板。
+
+    支持:
+    - list/tuple -> (item1, item2)
+    - datetime/date -> 'YYYY-MM-DD HH:MM:SS' 或 'YYYY-MM-DD'
+    - str -> 'escaped_string' (转义单引号)
+    - None -> NULL
+    - int/float/bool -> 字面量字符串
+
+    返回:
+        (rendered_sql, missing_params): 渲染后的 SQL 字符串及未提供值的参数列表。
+    """
+    import datetime
+    from typing import Any
+
+    def fmt(v: Any) -> str:
+        if isinstance(v, (list, tuple)):
+            if not v:
+                return "(NULL)"
+            return "(" + ",".join(fmt(i) for i in v) + ")"
+        if isinstance(v, datetime.datetime):
+            return f"'{v:%Y-%m-%d %H:%M:%S}'"
+        if isinstance(v, datetime.date):
+            return f"'{v:%Y-%m-%d}'"
+        if isinstance(v, str):
+            return "'" + v.replace("'", "''") + "'"
+        if v is None:
+            return "NULL"
+        return str(v)
+
+    # 查找所有 %(param_name)s 占位符
+    placeholders = re.findall(r"%\((\w+)\)s", sql)
+    missing_params = [p for p in placeholders if p not in params or params[p] is None]
+
+    def _replace(m: re.Match) -> str:
+        key = m.group(1)
+        if key not in params or params[key] is None:
+            return m.group(0)
+        return fmt(params[key])
+
+    rendered = re.sub(r"%\((\w+)\)s", _replace, sql)
+    return rendered, sorted(list(set(missing_params)))
+
+
+def parse_params(param_str: str) -> dict:
+    """解析用户输入的参数文本，支持 Python 字典 / OrderedDict 语法及 JSON 语法。"""
+    import datetime
+    import json
+    from collections import OrderedDict
+
+    param_str = param_str.strip()
+    if not param_str:
+        return {}
+
+    eval_globals = {
+        "datetime": datetime,
+        "date": datetime.date,
+        "OrderedDict": OrderedDict,
+        "dict": dict,
+        "list": list,
+        "tuple": tuple,
+        "True": True,
+        "False": False,
+        "None": None,
+        "true": True,
+        "false": False,
+        "null": None,
+    }
+
+    # 1. 尝试 Python safe eval
+    try:
+        res = eval(param_str, eval_globals, {})
+        if isinstance(res, (dict, OrderedDict)):
+            return dict(res)
+    except Exception:
+        pass
+
+    # 2. 尝试 JSON
+    try:
+        res = json.loads(param_str)
+        if isinstance(res, dict):
+            return res
+    except Exception:
+        pass
+
+    raise ValueError(
+        "无法解析参数。请输入合法的 Python 字典（如 `OrderedDict([('tid', 279), ...])`）或 JSON 格式。"
+    )
+
