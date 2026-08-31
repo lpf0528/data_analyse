@@ -111,7 +111,6 @@ def save_table_meta(table_data: Dict[str, Any]) -> int:
                 UPDATE nl2sql_table_meta
                 SET db_name = ?,
                     table_name = ?,
-                    table_alias = ?,
                     domain = ?,
                     use_for = ?,
                     required_filters = ?,
@@ -122,7 +121,6 @@ def save_table_meta(table_data: Dict[str, Any]) -> int:
             """, (
                 table_data.get("db_name", "warehouse"),
                 table_data["table_name"],
-                table_data["table_alias"],
                 table_data.get("domain", "未分类"),
                 table_data.get("use_for", ""),
                 table_data.get("required_filters", ""),
@@ -133,12 +131,11 @@ def save_table_meta(table_data: Dict[str, Any]) -> int:
             res_id = table_id
         else:
             cursor.execute("""
-                INSERT INTO nl2sql_table_meta (db_name, table_name, table_alias, domain, use_for, required_filters, optional_filters, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                INSERT INTO nl2sql_table_meta (db_name, table_name, domain, use_for, required_filters, optional_filters, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
             """, (
                 table_data.get("db_name", "warehouse"),
                 table_data["table_name"],
-                table_data["table_alias"],
                 table_data.get("domain", "未分类"),
                 table_data.get("use_for", ""),
                 table_data.get("required_filters", ""),

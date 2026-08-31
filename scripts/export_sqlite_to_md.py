@@ -37,7 +37,6 @@ def export_to_md(db_path: Path = DB_PATH, schema_md_path: Path = SCHEMA_MD_PATH,
             "每张表用以下结构声明约束，SKILL.md 中的规则引擎会读取并应用这些元数据：",
             "",
             "```",
-            "- **alias**: 推荐别名",
             "- **use_for**: 适合回答哪类问题（用于表选择决策）",
             "- **required_filters**: 使用此表必须注入的强制条件（无 [[]]），CTE 型表则为固定 WITH 写法",
             "- **optional_filters**: 可选条件（有则加 [[]]）；未列出时按业务需要自行添加",
@@ -62,14 +61,12 @@ def export_to_md(db_path: Path = DB_PATH, schema_md_path: Path = SCHEMA_MD_PATH,
             for tbl in tables:
                 table_id = tbl["id"]
                 table_name = tbl["table_name"]
-                alias = tbl["table_alias"]
                 use_for = tbl["use_for"]
                 req_filters = tbl["required_filters"]
                 opt_filters = tbl["optional_filters"]
 
                 schema_lines.append(f"### {table_name}")
                 schema_lines.append("")
-                schema_lines.append(f"- **alias**: `{alias}`")
                 schema_lines.append(f"- **use_for**: {use_for}")
 
                 if req_filters:

@@ -41,7 +41,7 @@ def list_tables_summary():
     tables = get_all_table_metas()
     print(f"=== 已注册数据表列表 (共 {len(tables)} 张) ===")
     for idx, t in enumerate(tables, start=1):
-        print(f"{idx}. 表名: `{t['table_name']}` | 别名: `{t['table_alias']}` | 板块: `{t['domain']}`")
+        print(f"{idx}. 表名: `{t['table_name']}` | 板块: `{t['domain']}`")
         print(f"   适用场景: {t['use_for'].strip()}")
         print()
 
@@ -57,7 +57,6 @@ def get_tables_detail(table_names: List[str]):
 
         print(f"==================================================")
         print(f"### 表名: `{detail['table_name']}`")
-        print(f"- **alias**: `{detail['table_alias']}`")
         print(f"- **domain**: {detail['domain']}")
         print(f"- **use_for**: {detail['use_for']}")
 
@@ -119,8 +118,8 @@ def search_tables(query_str: str):
             # 搜表级属性
             cursor.execute("""
                 SELECT id FROM nl2sql_table_meta
-                WHERE table_name LIKE ? OR table_alias LIKE ? OR domain LIKE ? OR use_for LIKE ? OR required_filters LIKE ?;
-            """, (like_pat, like_pat, like_pat, like_pat, like_pat))
+                WHERE table_name LIKE ? OR domain LIKE ? OR use_for LIKE ? OR required_filters LIKE ?;
+            """, (like_pat, like_pat, like_pat, like_pat))
             for row in cursor.fetchall():
                 matched_table_ids.add(row["id"])
 

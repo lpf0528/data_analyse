@@ -47,12 +47,10 @@ with col_head2:
 @st.dialog("新增数据表", width="large")
 def modal_add_table():
     with st.form("form_modal_add_table"):
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             new_table_name = st.text_input("表名 (table_name)*", placeholder="dim_lh_sample")
         with c2:
-            new_table_alias = st.text_input("推荐别名 (table_alias)*", placeholder="s")
-        with c3:
             new_domain = st.text_input("所属板块 (domain)", value="基础维度表")
 
         new_use_for = st.text_area("业务场景说明 (use_for)", placeholder="用于表选择决断...", height=100)
@@ -60,13 +58,12 @@ def modal_add_table():
         new_opt_filters = st.text_area("可选 WHERE 条件 (optional_filters)", placeholder="[[ AND `s`.`status` = {{status}} ]]", height=80)
 
         if st.form_submit_button("保存新增数据表", type="primary"):
-            if not new_table_name or not new_table_alias:
-                st.error("表名与推荐别名不能为空！")
+            if not new_table_name:
+                st.error("表名不能为空！")
             else:
                 try:
                     save_table_meta({
                         "table_name": new_table_name.strip(),
-                        "table_alias": new_table_alias.strip(),
                         "domain": new_domain.strip(),
                         "use_for": new_use_for.strip(),
                         "required_filters": new_req_filters.strip(),
@@ -85,19 +82,17 @@ def modal_edit_table(table_id: int):
         st.error("未找到数据表信息！")
         return
 
-    st.subheader(f"表: `{table_detail['table_name']}` (别名: `{table_detail['table_alias']}` | 板块: `{table_detail['domain']}`)")
+    st.subheader(f"表: `{table_detail['table_name']}` (板块: `{table_detail['domain']}`)")
 
     dlg_tab1, dlg_tab2, dlg_tab3 = st.tabs(["基本元信息", "字段字典列表", "典型 SQL 示例"])
 
     # 1. 基本元信息
     with dlg_tab1:
         with st.form(f"form_dlg_edit_table_{table_id}"):
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 edit_name = st.text_input("表名", value=table_detail["table_name"])
             with c2:
-                edit_alias = st.text_input("推荐别名", value=table_detail["table_alias"])
-            with c3:
                 edit_domain = st.text_input("所属板块", value=table_detail["domain"])
 
             edit_use_for = st.text_area("业务场景说明 (use_for)", value=table_detail["use_for"], height=100)
@@ -114,7 +109,6 @@ def modal_edit_table(table_id: int):
                 save_table_meta({
                     "id": table_detail["id"],
                     "table_name": edit_name.strip(),
-                    "table_alias": edit_alias.strip(),
                     "domain": edit_domain.strip(),
                     "use_for": edit_use_for.strip(),
                     "required_filters": edit_req_filters.strip(),
@@ -318,7 +312,7 @@ with tab_tables:
         with st.container(border=True):
             r1, r2, r3 = st.columns([6, 3, 1], vertical_alignment="center")
             with r1:
-                st.markdown(f"**{idx}. `{t['table_name']}`** (别名: `{t['table_alias']}` | 板块: `{t['domain']}`)")
+                st.markdown(f"**{idx}. `{t['table_name']}`** (板块: `{t['domain']}`)")
                 scen_text = t['use_for'].replace('\n', ' ')
                 if len(scen_text) > 80:
                     scen_text = scen_text[:80] + "..."

@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS nl2sql_table_meta (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     db_name TEXT NOT NULL DEFAULT 'warehouse',      -- 目标数据库名，如 warehouse
     table_name TEXT NOT NULL UNIQUE,                -- 数据表名，如 dim_lh_basic_team
-    table_alias TEXT NOT NULL,                      -- 推荐 SQL 别名，如 t
     domain TEXT NOT NULL DEFAULT '未分类',            -- 所属业务板块，如 基础维度表 / 汇总统计表
     use_for TEXT NOT NULL DEFAULT '',               -- 业务场景说明（表选择决策依据）
     required_filters TEXT NOT NULL DEFAULT '',      -- 必须注入的强制 WHERE 条件 snippet

@@ -50,7 +50,6 @@ def parse_schema_md(md_content: str):
             if table_match:
                 table_name = table_match.group(1).strip()
 
-                alias = ""
                 use_for = ""
                 required_filters = ""
                 optional_filters = ""
@@ -62,12 +61,8 @@ def parse_schema_md(md_content: str):
                 while i < n and not lines[i].strip().startswith("### ") and not lines[i].strip().startswith("## "):
                     cur_line = lines[i].strip()
 
-                    # 解析 alias
-                    if cur_line.startswith("- **alias**:") or cur_line.startswith("* **alias**:"):
-                        alias = cur_line.split(":", 1)[1].strip().strip("`").strip()
-
                     # 解析 use_for
-                    elif cur_line.startswith("- **use_for**:") or cur_line.startswith("* **use_for** SECONDARY"):
+                    if cur_line.startswith("- **use_for**:") or cur_line.startswith("* **use_for** SECONDARY"):
                         use_for_lines = [cur_line.split(":", 1)[1].strip()]
                         i += 1
                         while i < n:
@@ -163,7 +158,6 @@ def parse_schema_md(md_content: str):
                 tables.append({
                     "table_name": table_name,
                     "db_name": "warehouse",
-                    "table_alias": alias,
                     "domain": current_domain,
                     "use_for": use_for,
                     "required_filters": required_filters,
@@ -252,17 +246,16 @@ def migrate():
         # 1. 迁移表元数据及关联结构
         for tbl in parsed_tables:
             cursor.execute("""
-                INSERT INTO nl2sql_table_meta (db_name, table_name, table_alias, domain, use_for, required_filters, optional_filters, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO nl2sql_table_meta (db_name, table_name, domain, use_for, required_filters, optional_filters, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(table_name) DO UPDATE SET
                     db_name=excluded.db_name,
-                    table_alias=excluded.table_alias,
                     domain=excluded.domain,
                     use_for=excluded.use_for,
                     required_filters=excluded.required_filters,
                     optional_filters=excluded.optional_filters,
                     updated_at=CURRENT_TIMESTAMP;
-            """, (tbl["db_name"], tbl["table_name"], tbl["table_alias"], tbl["domain"], tbl["use_for"], tbl["required_filters"], tbl["optional_filters"]))
+            """, (tbl["db_name"], tbl["table_name"], tbl["domain"], tbl["use_for"], tbl["required_filters"], tbl["optional_filters"]))
 
             cursor.execute("SELECT id FROM nl2sql_table_meta WHERE table_name = ?", (tbl["table_name"],))
             table_id = cursor.fetchone()[0]
