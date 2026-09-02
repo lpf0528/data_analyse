@@ -7,6 +7,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+import importlib
+import utils.nl2sql_meta
+importlib.reload(utils.nl2sql_meta)
+
 from utils.nl2sql_meta import (
     delete_column_meta,
     delete_query_template,
@@ -21,6 +25,13 @@ from utils.nl2sql_meta import (
     save_table_example,
     save_table_meta,
 )
+
+import utils.query
+importlib.reload(utils.query)
+from utils.query import get_registered_databases
+
+
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = BASE_DIR / "data" / "nl2sql_meta.db"
@@ -47,10 +58,12 @@ with col_head2:
 @st.dialog("新增数据表", width="large")
 def modal_add_table():
     with st.form("form_modal_add_table"):
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns([2, 2, 2])
         with c1:
             new_table_name = st.text_input("表名 (table_name)*", placeholder="dim_lh_sample")
         with c2:
+            new_db_name = st.selectbox("目标数据库 (db_name)", options=get_registered_databases(), index=0)
+        with c3:
             new_domain = st.text_input("所属板块 (domain)", value="基础维度表")
 
         new_use_for = st.text_area("业务场景说明 (use_for)", placeholder="用于表选择决断...", height=100)
@@ -63,6 +76,7 @@ def modal_add_table():
             else:
                 try:
                     save_table_meta({
+                        "db_name": new_db_name.strip(),
                         "table_name": new_table_name.strip(),
                         "domain": new_domain.strip(),
                         "use_for": new_use_for.strip(),
@@ -82,17 +96,22 @@ def modal_edit_table(table_id: int):
         st.error("未找到数据表信息！")
         return
 
-    st.subheader(f"表: `{table_detail['table_name']}` (板块: `{table_detail['domain']}`)")
+    st.subheader(f"表: `{table_detail['table_name']}` (数据库: `{table_detail.get('db_name', 'warehouse')}` | 板块: `{table_detail['domain']}`)")
 
     dlg_tab1, dlg_tab2, dlg_tab3 = st.tabs(["基本元信息", "字段字典列表", "典型 SQL 示例"])
 
     # 1. 基本元信息
     with dlg_tab1:
         with st.form(f"form_dlg_edit_table_{table_id}"):
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns([2, 2, 2])
             with c1:
                 edit_name = st.text_input("表名", value=table_detail["table_name"])
             with c2:
+                db_opts = get_registered_databases()
+                curr_db = table_detail.get("db_name", "warehouse")
+                db_idx = db_opts.index(curr_db) if curr_db in db_opts else 0
+                edit_db_name = st.selectbox("目标数据库", options=db_opts, index=db_idx)
+            with c3:
                 edit_domain = st.text_input("所属板块", value=table_detail["domain"])
 
             edit_use_for = st.text_area("业务场景说明 (use_for)", value=table_detail["use_for"], height=100)
@@ -108,6 +127,7 @@ def modal_edit_table(table_id: int):
             if submit_save:
                 save_table_meta({
                     "id": table_detail["id"],
+                    "db_name": edit_db_name.strip(),
                     "table_name": edit_name.strip(),
                     "domain": edit_domain.strip(),
                     "use_for": edit_use_for.strip(),
@@ -116,6 +136,7 @@ def modal_edit_table(table_id: int):
                 })
                 st.success("更新表元信息成功！")
                 st.rerun()
+
 
             if submit_del:
                 delete_table_meta(table_detail["id"])
@@ -294,12 +315,18 @@ tab_tables, tab_templates, tab_ddl = st.tabs(["数据表与字段字典", "常�
 # TAB 1: 数据表与字段字典管理
 # ------------------------------------------------------------------------------
 with tab_tables:
-    col_t1, col_t2 = st.columns([3, 1], vertical_alignment="center")
-    table_metas = get_all_table_metas()
+    db_options = ["全部"] + get_registered_databases()
+    col_t1, col_t2, col_t3 = st.columns([3, 2, 1], vertical_alignment="center")
+
+    with col_t2:
+        selected_db_filter = st.selectbox("筛选数据库", options=db_options, index=0, key="tbl_db_filter")
+        filter_db = None if selected_db_filter == "全部" else selected_db_filter
+
+    table_metas = get_all_table_metas(db_name=filter_db)
 
     with col_t1:
         st.subheader(f"📋 已配置数据表列表 (共 {len(table_metas)} 张)")
-    with col_t2:
+    with col_t3:
         if st.button("➕ 新增数据表", type="primary", key="btn_open_add_table"):
             modal_add_table()
 
@@ -312,11 +339,13 @@ with tab_tables:
         with st.container(border=True):
             r1, r2, r3 = st.columns([6, 3, 1], vertical_alignment="center")
             with r1:
-                st.markdown(f"**{idx}. `{t['table_name']}`** (板块: `{t['domain']}`)")
+                db_badge = t.get('db_name', 'warehouse')
+                st.markdown(f"**{idx}. `{t['table_name']}`** `[{db_badge}]` (板块: `{t['domain']}`)")
                 scen_text = t['use_for'].replace('\n', ' ')
                 if len(scen_text) > 80:
                     scen_text = scen_text[:80] + "..."
                 st.caption(f"场景: {scen_text}")
+
             with r2:
                 st.caption(f"字段数: **{col_count}** | 示例数: **{ex_count}**")
                 req_text = t['required_filters'].replace('\n', ' ') if t['required_filters'] else "无"

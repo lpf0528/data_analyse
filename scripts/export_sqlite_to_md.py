@@ -30,13 +30,14 @@ def export_to_md(db_path: Path = DB_PATH, schema_md_path: Path = SCHEMA_MD_PATH,
         domains = [row["domain"] for row in cursor.fetchall()]
 
         schema_lines = [
-            "# Schema Reference — warehouse 数据库",
+            "# Schema Reference — 多数据库 Schema 规范",
             "",
             "## 表元数据协议说明",
             "",
             "每张表用以下结构声明约束，SKILL.md 中的规则引擎会读取并应用这些元数据：",
             "",
             "```",
+            "- **db_name**: 目标数据库名（如 warehouse / lh_teaching）",
             "- **use_for**: 适合回答哪类问题（用于表选择决策）",
             "- **required_filters**: 使用此表必须注入的强制条件（无 [[]]），CTE 型表则为固定 WITH 写法",
             "- **optional_filters**: 可选条件（有则加 [[]]）；未列出时按业务需要自行添加",
@@ -60,6 +61,7 @@ def export_to_md(db_path: Path = DB_PATH, schema_md_path: Path = SCHEMA_MD_PATH,
 
             for tbl in tables:
                 table_id = tbl["id"]
+                db_name = tbl["db_name"] or "warehouse"
                 table_name = tbl["table_name"]
                 use_for = tbl["use_for"]
                 req_filters = tbl["required_filters"]
@@ -67,7 +69,9 @@ def export_to_md(db_path: Path = DB_PATH, schema_md_path: Path = SCHEMA_MD_PATH,
 
                 schema_lines.append(f"### {table_name}")
                 schema_lines.append("")
+                schema_lines.append(f"- **db_name**: `{db_name}`")
                 schema_lines.append(f"- **use_for**: {use_for}")
+
 
                 if req_filters:
                     schema_lines.append("- **required_filters**:")

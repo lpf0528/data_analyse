@@ -16,7 +16,12 @@ except ImportError:
     importlib.reload(utils.metabase)
     from utils.metabase import parse_params, render_sql
 
-from utils.query import get_conn
+import utils.query
+importlib.reload(utils.query)
+from utils.query import get_conn, get_registered_databases
+
+
+
 
 # 默认 SQL 模板示例（提取自用户需求）
 DEFAULT_SQL_TEMPLATE = """-- lh-teaching
@@ -176,11 +181,13 @@ with col_right:
     )
 
 # 操作按钮列
-col_btn1, col_btn2, _ = st.columns([1.5, 2, 4.5])
+col_btn1, col_btn2, col_db, _ = st.columns([1.5, 2, 2.5, 2], vertical_alignment="center")
 with col_btn1:
     btn_render = st.button("渲染 SQL", type="primary", key="btn_render", icon=":material/code:")
 with col_btn2:
     btn_test_exec = st.button("渲染并验证执行", key="btn_test_exec", icon=":material/play_arrow:")
+with col_db:
+    target_db = st.selectbox("目标数据库", options=get_registered_databases(), index=0, key="sql_render_target_db")
 
 # 解析与渲染逻辑
 parse_error = None
@@ -205,14 +212,15 @@ if parse_error:
 else:
     if missing_params:
         st.warning(f"⚠️ SQL 中存在未在参数字典中赋值的占位符: `{'`, `'.join(missing_params)}`")
-    
+
     with st.expander("渲染后的 SQL (可执行 SQL)", expanded=False):
         st.code(rendered_sql, language="sql")
 
     # 点击验证执行
     if btn_test_exec:
         st.subheader("执行结果校验")
-        conn = get_conn()
+        conn = get_conn(db_name=target_db)
+
         try:
             with st.spinner("正在发送至数据库执行校验..."):
                 start_time = time.time()

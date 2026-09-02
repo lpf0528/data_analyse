@@ -47,22 +47,22 @@ def get_all_domains() -> List[str]:
         return [row["domain"] for row in cursor.fetchall()]
 
 
-def get_all_table_metas(domain: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_all_table_metas(domain: Optional[str] = None, db_name: Optional[str] = None) -> List[Dict[str, Any]]:
     """查询表元数据列表"""
     with get_db_conn() as conn:
         cursor = conn.cursor()
+        query = "SELECT * FROM nl2sql_table_meta WHERE status = 1"
+        params = []
         if domain:
-            cursor.execute("""
-                SELECT * FROM nl2sql_table_meta
-                WHERE domain = ? AND status = 1
-                ORDER BY id ASC;
-            """, (domain,))
-        else:
-            cursor.execute("""
-                SELECT * FROM nl2sql_table_meta
-                ORDER BY id ASC;
-            """)
+            query += " AND domain = ?"
+            params.append(domain)
+        if db_name:
+            query += " AND db_name = ?"
+            params.append(db_name)
+        query += " ORDER BY id ASC;"
+        cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
 
 
 def get_table_detail(table_id_or_name: Any) -> Optional[Dict[str, Any]]:

@@ -1,10 +1,11 @@
-# Schema Reference — warehouse 数据库
+# Schema Reference — 多数据库 Schema 规范
 
 ## 表元数据协议说明
 
 每张表用以下结构声明约束，SKILL.md 中的规则引擎会读取并应用这些元数据：
 
 ```
+- **db_name**: 目标数据库名（如 warehouse / lh_teaching）
 - **use_for**: 适合回答哪类问题（用于表选择决策）
 - **required_filters**: 使用此表必须注入的强制条件（无 [[]]），CTE 型表则为固定 WITH 写法
 - **optional_filters**: 可选条件（有则加 [[]]）；未列出时按业务需要自行添加
@@ -17,6 +18,7 @@
 
 ### dim_lh_basic_team
 
+- **db_name**: `warehouse`
 - **use_for**: 定义不同的团队/训练营，其余数据表都使用 `camp_id` 或 `tid`（对应本表 `id`）实现数据隔离，且二者在查询时均为必填参数
 - **required_filters**:
   ```sql
@@ -34,6 +36,7 @@
 
 ### dim_lh_teaching_class_term
 
+- **db_name**: `warehouse`
 - **use_for**: 每个团队/训练营下定义不同的营期，实现不同营期之间的数据隔离
 - **required_filters**:
   ```sql
@@ -69,6 +72,7 @@ ORDER BY `ct`.`rank`
 
 ### dwd_lh_classes
 
+- **db_name**: `warehouse`
 - **use_for**: 每个营期下定义不同的班级，实现不同班级之间的数据隔离。
 - **required_filters**:
   ```sql
@@ -102,6 +106,7 @@ ORDER BY `c`.`class_name`
 
 ### ods_lh_teaching_lh_teaching_student
 
+- **db_name**: `warehouse`
 - **use_for**: 班级下所有学员。
 1. 一般使用 `account_id`（荔课ID）代表一个学员，其余数据表通过 `account_id` 关联到该学员。
 2. 用户可能通过不同主体注册，存在多个 `account_id`（荔课ID）记录。为标识多个 `account_id` 属于同一学员，需通过 `account_main_id`（学员主账号ID）关联。
@@ -155,6 +160,7 @@ WHERE 1=1
 
 ### dim_lh_teaching_weeks_conf
 
+- **db_name**: `warehouse`
 - **use_for**: 记录自定义的自然周（某年、某月、某周）配置的开始时间和结束时间，因为需要根据周维度来查看班级/营期下学员相关数据的变化，例如：添加人数、授权人数、退费人数等，这些数据都以周维度的方式记录在`dws_lh_teaching_term_class_week`表中，经常用来作为筛选列表。
 - **required_filters**:
   ```sql
@@ -178,6 +184,7 @@ WHERE 1=1
 
 ### dws_lh_teaching_repurchase_category_class_day
 
+- **db_name**: `warehouse`
 - **use_for**: 记录**班级**每天学员数据指标定格的汇总快照
 - **required_filters**:
   ```sql
@@ -248,6 +255,7 @@ WHERE 1=1
 
 ### dws_lh_teaching_term_class_week
 
+- **db_name**: `warehouse`
 - **use_for**: 记录某个自然周结束时，班级下学员指标定格的汇总快照。通常用来：
 1. 对比某自然周不同班级学员指标的差异
 2. 对比某个班级在连续自然周学员指标的变化
@@ -340,6 +348,7 @@ WHERE 1=1
 
 ### authorize_account_order
 
+- **db_name**: `warehouse`
 - **use_for**: 查询学员的复购订单数据。同一荔课 ID 可能存在于多个营期/班级，订单关联复杂，已封装为固定 CTE，无需关注内部表结构与 JOIN。使用时：
 > 1. 将下方 **完整 CTE 块**原样粘贴到 SQL 最前面，业务查询从 CTE `authorize_account_order` 取数（别名 `aao`）
 > 2. 3 个必填参数已写入 CTE：`{{tid}}`、`{{start_date}}`、`{{end_date}}`（日期格式 `'YYYY-MM-DD'`）；其余可选参数按用户问题增减
@@ -395,6 +404,7 @@ ORDER BY `total_pay_fee` DESC
 
 ### ods_lh_efficiency_platform_term_student_chat_message_all
 
+- **db_name**: `warehouse`
 - **use_for**: 记录营期学员与机器人/客服的聊天消息跟进明细（全部消息类型），包含消息类型、发送状态、回复时长（等待时长）、回复场景（私聊/客服/AI自动/关键词）及消息标签等。适合回答：
 1. 营期学员消息跟进率、跟进响应时长及逾期未回复（`wait_interval >= 7200`）统计
 2. 消息类型（文字、图片、语音、视频、图文链接、小程序、视频号等）与回复场景分布

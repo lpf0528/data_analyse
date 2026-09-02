@@ -180,13 +180,25 @@ def _get_metabase_client() -> MetabaseClient:
     return client
 
 
-def get_conn() -> Any:
-    """
-    按当前后端返回可 `.query(...)` 的连接对象。
+REGISTERED_DATABASES: list[str] = ["warehouse", "lh_teaching"]
 
-    - mysql → st.connection("mysql", type="sql")
-    - metabase → MetabaseQueryConn
+
+def get_registered_databases() -> list[str]:
+    """返回当前支持/已配置的目标数据库列表。"""
+    return list(REGISTERED_DATABASES)
+
+
+def get_conn(db_name: str = "warehouse") -> Any:
     """
-    if get_query_backend() == "metabase":
-        return MetabaseQueryConn(_get_metabase_client())
-    return st.connection("mysql", type="sql")
+    按指定数据库名与后端配置返回可 `.query(...)` 的连接对象。
+
+    - warehouse (或 doris) → 根据侧边栏配置走 MetabaseQueryConn 或 st.connection("mysql", type="sql")
+    - lh_teaching (或其他定义在 secrets.connections 中的库) → st.connection(db_name, type="sql")
+    """
+    if db_name in ("warehouse", "doris", "", None):
+        if get_query_backend() == "metabase":
+            return MetabaseQueryConn(_get_metabase_client())
+        return st.connection("mysql", type="sql")
+
+    return st.connection(db_name, type="sql")
+

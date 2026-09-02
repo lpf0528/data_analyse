@@ -36,20 +36,23 @@ uv sync
 
 ### Database / 查询后端
 
-页面与筛选器统一通过 `utils.query.get_conn()` 取连接，**勿再直接写** `st.connection("mysql")`：
+页面与筛选器统一通过 `utils.query.get_conn(db_name="warehouse")` 取连接，支持多数据库路由：
 
-| 后端 | 实现 | 场景 |
+| 后端 / 数据库 | 实现 | 场景 |
 |------|------|------|
-| `mysql` | `st.connection("mysql", type="sql")` | 能直连 StarRocks（MySQL 协议，port 9030） |
-| `metabase` | `MetabaseQueryConn` → `/api/dataset` | 本地连不上线上库 |
+| `warehouse` (`mysql`) | `st.connection("mysql", type="sql")` | 直连 StarRocks/Doris（MySQL 协议，port 9030） |
+| `warehouse` (`metabase`) | `MetabaseQueryConn` → `/api/dataset` | 本地连不上线上 Doris 时经 Metabase 代理查询 |
+| `lh_teaching` | `st.connection("lh_teaching", type="sql")` | 教学业务 MySQL 数据库直连 (10.10.3.74:11810) |
 
 配置（`.streamlit/secrets.toml`）：
 
-- `[connections.mysql]` — 直连（`database = "warehouse"`，无 schema 前缀也可）
+- `[connections.mysql]` — Doris 仓库直连（`database = "warehouse"`）
+- `[connections.lh_teaching]` — 教学业务 MySQL 直连（`database = "lh_teaching"`）
 - `[metabase]` — `base_url` / `username` / `password` / `db_id` / `cookies_file`
-- `query_backend` — 默认 `"mysql"` 或 `"metabase"`（本地无库建议后者）
+- `query_backend` — 默认 `"mysql"` 或 `"metabase"`（影响 `warehouse` 数据的查询方式）
 
-侧边栏可随时覆盖默认后端。两种后端均暴露 `conn.query(sql, params=..., ttl=0) -> DataFrame`。
+`get_conn(db_name)` 会根据传入的 `db_name`（如 `"warehouse"` / `"lh_teaching"`）自动返回对应的 `.query(...)` 连接对象。
+
 
 **表名约定（重要）**：Metabase 连接的默认库常为 `doris`，未加 schema 会报
 `Table [...] does not exist in database [doris]`。  
